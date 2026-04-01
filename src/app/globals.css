@@ -1,49 +1,567 @@
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
-html {
+html, body {
+  width: 100%;
   height: 100%;
+  background: #0a0a0f;
+  color: #fff;
+  font-family: monospace;
+  overflow: hidden;
 }
 
-html,
-body {
-  max-width: 100vw;
-  overflow-x: hidden;
-}
+/* ── Loadout selection screen ───────────────────────────── */
 
-body {
-  min-height: 100%;
+.loadout-screen {
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  padding: 2rem;
+  overflow-y: auto;
 }
 
-* {
-  box-sizing: border-box;
-  padding: 0;
-  margin: 0;
+.loadout-title {
+  font-size: clamp(2rem, 6vw, 4rem);
+  letter-spacing: 0.2em;
+  color: #fff;
 }
 
-a {
-  color: inherit;
-  text-decoration: none;
+.loadout-subtitle {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.4);
+  letter-spacing: 0.08em;
 }
 
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
+.loadout-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  width: 100%;
+  max-width: 860px;
+}
+
+.loadout-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 1.1rem 1.2rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  color: #fff;
+  font-family: monospace;
+}
+
+.loadout-card:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--ability-color);
+}
+
+.loadout-card--active {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--ability-color);
+  box-shadow: 0 0 16px -4px var(--ability-color);
+}
+
+.loadout-card--disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.loadout-card-name {
+  font-size: 1rem;
+  font-weight: bold;
+  color: var(--ability-color);
+  letter-spacing: 0.05em;
+}
+
+.loadout-card-gesture {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.loadout-category {
+  width: 100%;
+  max-width: 860px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.loadout-category-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 0 0.1rem;
+}
+
+.loadout-category-label {
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  color: rgba(255, 255, 255, 0.35);
+  text-transform: uppercase;
+}
+
+.loadout-category-count {
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.25);
+}
+
+.loadout-start {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 8px;
+  padding: 0.75rem 2.5rem;
+  color: #fff;
+  font-family: monospace;
+  font-size: 1rem;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.loadout-start:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.loadout-start:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* ── Game layout ────────────────────────────────────────── */
+
+.game-root {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+/* Hidden video element — we draw its frames on canvas */
+.game-video {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Canvas fills the viewport */
+.game-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ── Turn timer ─────────────────────────────────────────── */
+
+.turn-timer {
+  position: absolute;
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(420px, 80vw);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.turn-timer-label {
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.turn-timer-track {
+  width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.turn-timer-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.95s linear, background 0.3s;
+}
+
+.cancel-move-btn {
+  margin-top: 0.25rem;
+  background: none;
+  border: 1px solid rgba(255, 80, 80, 0.4);
+  border-radius: 4px;
+  padding: 0.2rem 0.7rem;
+  color: rgba(255, 100, 100, 0.7);
+  font-family: monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.cancel-move-btn:hover {
+  color: #ff6666;
+  border-color: rgba(255, 80, 80, 0.8);
+}
+
+/* ── Back button ────────────────────────────────────────── */
+
+.back-button {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  z-index: 20;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  padding: 0.4rem 0.9rem;
+  color: rgba(255, 255, 255, 0.55);
+  font-family: monospace;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.back-button:hover {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+/* ── Status overlay ─────────────────────────────────────── */
+
+.status-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  color: rgba(255, 255, 255, 0.6);
+  letter-spacing: 0.05em;
+  z-index: 10;
+}
+
+/* ── HUD ────────────────────────────────────────────────── */
+
+.ability-display {
+  position: absolute;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 0.75rem 1.5rem;
+  min-width: 240px;
+  z-index: 50;
+  backdrop-filter: blur(6px);
+}
+
+.gesture-label {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.45);
+  margin-bottom: 0.4rem;
+  letter-spacing: 0.04em;
+}
+
+.gesture-value {
+  color: rgba(255, 255, 255, 0.85);
+  font-weight: bold;
+}
+
+.ability-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.ability-name {
+  font-size: 1.1rem;
+  font-weight: bold;
+  letter-spacing: 0.06em;
+  min-width: 60px;
+}
+
+.cooldown-bar-track {
+  flex: 1;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.cooldown-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.05s linear;
+}
+
+/* ── Effect overlay ─────────────────────────────────────── */
+
+.effect-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 30;
+}
+
+/* Shield — radial blue pulse */
+.effect-shield {
+  animation: shield-pulse 0.7s ease-out forwards;
+}
+
+@keyframes shield-pulse {
+  0%   { box-shadow: inset 0 0 0 0px rgba(68, 170, 255, 0);    background: rgba(68, 170, 255, 0.0); }
+  25%  { box-shadow: inset 0 0 80px 40px rgba(68, 170, 255, 0.4); background: rgba(68, 170, 255, 0.15); }
+  100% { box-shadow: inset 0 0 120px 80px rgba(68, 170, 255, 0); background: rgba(68, 170, 255, 0.0); }
+}
+
+/* Strike — red flash + shake */
+.effect-strike {
+  animation: strike-flash 0.5s ease-out forwards;
+}
+
+@keyframes strike-flash {
+  0%   { background: rgba(255, 60, 60, 0.0);  transform: translate(0, 0); }
+  10%  { background: rgba(255, 60, 60, 0.45); transform: translate(-6px, 3px); }
+  20%  { background: rgba(255, 60, 60, 0.35); transform: translate(5px, -3px); }
+  30%  { background: rgba(255, 60, 60, 0.25); transform: translate(-4px, 2px); }
+  50%  { background: rgba(255, 60, 60, 0.1);  transform: translate(2px, -1px); }
+  100% { background: rgba(255, 60, 60, 0.0);  transform: translate(0, 0); }
+}
+
+/* Death Ball — dark energy sphere forms at center then detonates */
+.effect-death-ball {
+  animation: death-ball 1.4s ease-in-out forwards;
+}
+
+@keyframes death-ball {
+  0%   {
+    background: radial-gradient(circle at 50% 50%, rgba(80, 0, 160, 0) 0%, rgba(0, 0, 0, 0) 100%);
+    box-shadow: inset 0 0 0 0px rgba(100, 0, 200, 0);
   }
+  25%  {
+    background: radial-gradient(circle at 50% 50%, rgba(180, 60, 255, 0.85) 0%, rgba(80, 0, 180, 0.55) 18%, rgba(0, 0, 0, 0.65) 55%, rgba(0, 0, 0, 0) 100%);
+    box-shadow: inset 0 0 80px 30px rgba(100, 0, 200, 0.35);
+  }
+  50%  {
+    background: radial-gradient(circle at 50% 50%, rgba(255, 220, 255, 1) 0%, rgba(200, 80, 255, 1) 6%, rgba(100, 0, 220, 0.85) 18%, rgba(20, 0, 60, 0.8) 55%, rgba(0, 0, 0, 0) 100%);
+    box-shadow: inset 0 0 220px 80px rgba(130, 0, 255, 0.6);
+  }
+  75%  {
+    background: radial-gradient(circle at 50% 50%, rgba(80, 0, 160, 0.4) 0%, rgba(40, 0, 100, 0.25) 30%, rgba(0, 0, 0, 0) 70%, rgba(0, 0, 0, 0) 100%);
+    box-shadow: inset 0 0 150px 60px rgba(80, 0, 180, 0.2);
+  }
+  100% {
+    background: radial-gradient(circle at 50% 50%, rgba(80, 0, 160, 0) 0%, rgba(0, 0, 0, 0) 100%);
+    box-shadow: inset 0 0 0 0px rgba(100, 0, 200, 0);
+  }
+}
+
+/* Instant Transmission — golden flash then gone */
+.effect-it {
+  animation: it-flash 0.5s ease-out forwards;
+}
+
+@keyframes it-flash {
+  0%   { background: rgba(255, 240, 160, 0);    box-shadow: inset 0 0 0 0px   rgba(255, 200, 60, 0); }
+  10%  { background: rgba(255, 240, 160, 0.9);  box-shadow: inset 0 0 200px 80px rgba(255, 200, 60, 0.7); }
+  40%  { background: rgba(255, 240, 160, 0.6);  box-shadow: inset 0 0 120px 40px rgba(255, 200, 60, 0.4); }
+  100% { background: rgba(255, 240, 160, 0);    box-shadow: inset 0 0 0 0px   rgba(255, 200, 60, 0); }
+}
+
+/* Shot — orange piercing beam */
+.effect-shot {
+  animation: shot-flash 0.4s ease-out forwards;
+}
+
+@keyframes shot-flash {
+  0%   { box-shadow: inset 0 0 0 0px rgba(255, 140, 60, 0);    background: rgba(255, 140, 60, 0.0); }
+  12%  { box-shadow: inset 0 0 40px 20px rgba(255, 140, 60, 0.6); background: rgba(255, 140, 60, 0.25); }
+  100% { box-shadow: inset 0 0 80px 40px rgba(255, 140, 60, 0); background: rgba(255, 140, 60, 0.0); }
+}
+
+/* Domain Expansion — Unlimited Void */
+.effect-domain {
+  animation: domain-void 3.5s ease-in-out forwards;
+}
+
+/* Title text rendered via pseudo-element */
+.effect-domain::after {
+  content: 'DOMAIN EXPANSION\A UNLIMITED VOID';
+  white-space: pre;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  font-family: monospace;
+  font-size: clamp(1.2rem, 4vw, 2.4rem);
+  font-weight: bold;
+  letter-spacing: 0.18em;
+  color: rgba(220, 200, 255, 0);
+  text-shadow:
+    0 0 20px rgba(180, 120, 255, 0),
+    0 0 60px rgba(120, 60, 255, 0);
+  animation: domain-text 3.5s ease-in-out forwards;
+}
+
+@keyframes domain-void {
+  0%   {
+    background: rgba(0, 0, 0, 0);
+    box-shadow: inset 0 0 0 0px rgba(100, 60, 200, 0);
+  }
+  15%  {
+    background: rgba(0, 0, 0, 0.7);
+    box-shadow: inset 0 0 200px 100px rgba(80, 40, 180, 0.6);
+  }
+  50%  {
+    background: rgba(2, 0, 10, 0.92);
+    box-shadow:
+      inset 0 0 300px 150px rgba(60, 20, 160, 0.7),
+      inset 0 0 600px 300px rgba(20, 0, 60, 0.9);
+  }
+  85%  {
+    background: rgba(2, 0, 10, 0.92);
+    box-shadow:
+      inset 0 0 300px 150px rgba(60, 20, 160, 0.7),
+      inset 0 0 600px 300px rgba(20, 0, 60, 0.9);
+  }
+  100% {
+    background: rgba(0, 0, 0, 0);
+    box-shadow: inset 0 0 0 0px rgba(100, 60, 200, 0);
+  }
+}
+
+@keyframes domain-text {
+  0%   { color: rgba(220, 200, 255, 0);   text-shadow: 0 0 20px rgba(180, 120, 255, 0),   0 0 60px rgba(120, 60, 255, 0); }
+  20%  { color: rgba(220, 200, 255, 0.95); text-shadow: 0 0 30px rgba(180, 120, 255, 0.8), 0 0 80px rgba(120, 60, 255, 0.5); }
+  70%  { color: rgba(220, 200, 255, 0.95); text-shadow: 0 0 30px rgba(180, 120, 255, 0.8), 0 0 80px rgba(120, 60, 255, 0.5); }
+  100% { color: rgba(220, 200, 255, 0);   text-shadow: 0 0 20px rgba(180, 120, 255, 0),   0 0 60px rgba(120, 60, 255, 0); }
+}
+
+/* Malevolent Shrine — blood red, raw, demonic */
+.effect-shrine {
+  animation: shrine-burst 4s ease-in-out forwards;
+}
+
+.effect-shrine::after {
+  content: 'DOMAIN EXPANSION\A MALEVOLENT SHRINE';
+  white-space: pre;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  font-family: monospace;
+  font-size: clamp(1.2rem, 4vw, 2.4rem);
+  font-weight: bold;
+  letter-spacing: 0.18em;
+  color: rgba(255, 60, 60, 0);
+  text-shadow:
+    0 0 20px rgba(255, 0, 0, 0),
+    0 0 60px rgba(180, 0, 0, 0);
+  animation: shrine-text 4s ease-in-out forwards;
+}
+
+@keyframes shrine-burst {
+  0%   {
+    background: rgba(0, 0, 0, 0);
+    box-shadow: inset 0 0 0 0px rgba(180, 0, 0, 0);
+  }
+  10%  {
+    background: rgba(60, 0, 0, 0.85);
+    box-shadow: inset 0 0 300px 150px rgba(200, 20, 0, 0.8);
+  }
+  30%  {
+    background: rgba(8, 0, 0, 0.95);
+    box-shadow:
+      inset 0 0 400px 200px rgba(160, 10, 0, 0.75),
+      inset 0 0 700px 350px rgba(60, 0, 0, 0.95);
+  }
+  80%  {
+    background: rgba(8, 0, 0, 0.95);
+    box-shadow:
+      inset 0 0 400px 200px rgba(160, 10, 0, 0.75),
+      inset 0 0 700px 350px rgba(60, 0, 0, 0.95);
+  }
+  100% {
+    background: rgba(0, 0, 0, 0);
+    box-shadow: inset 0 0 0 0px rgba(180, 0, 0, 0);
+  }
+}
+
+@keyframes shrine-text {
+  0%   { color: rgba(255, 60, 60, 0);    text-shadow: 0 0 20px rgba(255, 0, 0, 0),    0 0 60px rgba(180, 0, 0, 0); }
+  15%  { color: rgba(255, 80, 80, 0.95); text-shadow: 0 0 30px rgba(255, 40, 40, 0.9), 0 0 80px rgba(200, 0, 0, 0.6); }
+  75%  { color: rgba(255, 80, 80, 0.95); text-shadow: 0 0 30px rgba(255, 40, 40, 0.9), 0 0 80px rgba(200, 0, 0, 0.6); }
+  100% { color: rgba(255, 60, 60, 0);    text-shadow: 0 0 20px rgba(255, 0, 0, 0),    0 0 60px rgba(180, 0, 0, 0); }
+}
+
+/* Mahoraga — shadow black cracking open with pale blue light */
+.effect-mahoraga {
+  animation: mahoraga-summon 5s ease-in-out forwards;
+}
+
+.effect-mahoraga::after {
+  content: 'TEN SHADOWS TECHNIQUE\A EIGHT-HANDLED SWORD\A DIVERGENT SILA DIVINE GENERAL\A MAHORAGA';
+  white-space: pre;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  font-family: monospace;
+  font-size: clamp(0.7rem, 2.2vw, 1.3rem);
+  font-weight: bold;
+  letter-spacing: 0.15em;
+  line-height: 2;
+  color: rgba(180, 220, 255, 0);
+  text-shadow: 0 0 20px rgba(100, 180, 255, 0), 0 0 60px rgba(60, 120, 255, 0);
+  animation: mahoraga-text 5s ease-in-out forwards;
+}
+
+@keyframes mahoraga-summon {
+  0%   { background: rgba(0, 0, 0, 0);    box-shadow: inset 0 0 0 0px rgba(80, 140, 255, 0); }
+  8%   { background: rgba(0, 0, 0, 0.97); box-shadow: inset 0 0 0 0px rgba(80, 140, 255, 0); }
+  20%  {
+    background: rgba(0, 0, 0, 0.97);
+    box-shadow: inset 0 0 200px 60px rgba(80, 140, 255, 0.25);
+  }
+  60%  {
+    background: rgba(0, 0, 0, 0.97);
+    box-shadow: inset 0 0 300px 100px rgba(80, 140, 255, 0.3);
+  }
+  85%  {
+    background: rgba(0, 0, 0, 0.97);
+    box-shadow: inset 0 0 200px 60px rgba(80, 140, 255, 0.2);
+  }
+  100% { background: rgba(0, 0, 0, 0);    box-shadow: inset 0 0 0 0px rgba(80, 140, 255, 0); }
+}
+
+@keyframes mahoraga-text {
+  0%   { color: rgba(180, 220, 255, 0);    text-shadow: 0 0 20px rgba(100, 180, 255, 0),    0 0 60px rgba(60, 120, 255, 0); }
+  20%  { color: rgba(180, 220, 255, 0.9);  text-shadow: 0 0 25px rgba(100, 180, 255, 0.6),  0 0 70px rgba(60, 120, 255, 0.3); }
+  70%  { color: rgba(180, 220, 255, 0.9);  text-shadow: 0 0 25px rgba(100, 180, 255, 0.6),  0 0 70px rgba(60, 120, 255, 0.3); }
+  100% { color: rgba(180, 220, 255, 0);    text-shadow: 0 0 20px rgba(100, 180, 255, 0),    0 0 60px rgba(60, 120, 255, 0); }
 }

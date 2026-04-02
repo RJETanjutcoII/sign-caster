@@ -13,7 +13,7 @@ export const ABILITIES = {
   },
   point: {
     name: 'Death Ball',
-    category: 'basic',
+    category: 'special',
     color: '#bb44ff',
     effectClass: 'effect-death-ball',
     cooldown: 1500,
@@ -24,6 +24,27 @@ export const ABILITIES = {
     color: '#ff8844',
     effectClass: 'effect-shot',
     cooldown: 1500,
+  },
+  sharingan: {
+    name: 'Sharingan',
+    category: 'augmentation',
+    color: '#ff2222',
+    effectClass: 'effect-sharingan',
+    cooldown: 5000,
+  },
+  spirit_bomb: {
+    name: 'Spirit Bomb',
+    category: 'ultimate',
+    color: '#ffffaa',
+    effectClass: 'effect-spirit-bomb',
+    cooldown: 15000,
+  },
+  kamehameha: {
+    name: 'Kamehameha',
+    category: 'special',
+    color: '#44aaff',
+    effectClass: 'effect-kamehameha',
+    cooldown: 10000,
   },
   unlimited_void: {
     name: 'Unlimited Void',
@@ -52,6 +73,13 @@ export const ABILITIES = {
     color: '#ffd966',
     effectClass: 'effect-it',
     cooldown: 2000,
+  },
+  thumbs_up: {
+    name: 'Heal',
+    category: 'support',
+    color: '#ff6699',
+    effectClass: 'effect-heal',
+    cooldown: 3000,
   },
 };
 

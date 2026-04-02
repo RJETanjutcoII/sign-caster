@@ -316,6 +316,59 @@ html, body {
   transition: width 0.05s linear;
 }
 
+/* ── Loadout HUD ────────────────────────────────────────── */
+
+.loadout-hud {
+  position: absolute;
+  top: 50%;
+  right: 1rem;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  z-index: 20;
+}
+
+.loadout-hud-entry {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-left: 2px solid var(--ability-color);
+  border-radius: 6px;
+  padding: 0.35rem 0.6rem;
+  backdrop-filter: blur(4px);
+}
+
+.loadout-hud-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ability-color);
+  flex-shrink: 0;
+  box-shadow: 0 0 6px var(--ability-color);
+}
+
+.loadout-hud-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.loadout-hud-name {
+  font-size: 0.72rem;
+  font-weight: bold;
+  color: var(--ability-color);
+  letter-spacing: 0.04em;
+}
+
+.loadout-hud-hint {
+  font-size: 0.6rem;
+  color: rgba(255, 255, 255, 0.35);
+  letter-spacing: 0.02em;
+}
+
 /* ── Effect overlay ─────────────────────────────────────── */
 
 .effect-overlay {
@@ -390,6 +443,76 @@ html, body {
   100% { background: rgba(255, 240, 160, 0);    box-shadow: inset 0 0 0 0px   rgba(255, 200, 60, 0); }
 }
 
+/* Sharingan — red vignette with spinning tomoe rings */
+.effect-sharingan {
+  animation: sharingan-activate 2.5s ease-in-out forwards;
+}
+
+.effect-sharingan::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(320px, 50vw);
+  height: min(320px, 50vw);
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 4px solid rgba(255, 30, 30, 0.8);
+  box-shadow:
+    0 0 30px rgba(255, 0, 0, 0.6),
+    inset 0 0 30px rgba(255, 0, 0, 0.4);
+  animation: sharingan-spin 2.5s linear forwards;
+}
+
+.effect-sharingan::after {
+  content: 'SHARINGAN';
+  position: absolute;
+  bottom: 30%;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: monospace;
+  font-size: clamp(1rem, 3vw, 1.8rem);
+  font-weight: bold;
+  letter-spacing: 0.3em;
+  color: rgba(255, 60, 60, 0);
+  text-shadow: 0 0 20px rgba(255, 0, 0, 0);
+  animation: sharingan-text 2.5s ease-in-out forwards;
+}
+
+@keyframes sharingan-activate {
+  0%   { background: rgba(180, 0, 0, 0);    box-shadow: inset 0 0 0 0px rgba(200, 0, 0, 0); }
+  20%  { background: rgba(180, 0, 0, 0.45); box-shadow: inset 0 0 200px 80px rgba(200, 0, 0, 0.5); }
+  60%  { background: rgba(120, 0, 0, 0.35); box-shadow: inset 0 0 250px 100px rgba(200, 0, 0, 0.4); }
+  100% { background: rgba(180, 0, 0, 0);    box-shadow: inset 0 0 0 0px rgba(200, 0, 0, 0); }
+}
+
+@keyframes sharingan-spin {
+  0%   { opacity: 0; transform: translate(-50%, -50%) rotate(0deg)   scale(0.3); }
+  20%  { opacity: 1; transform: translate(-50%, -50%) rotate(120deg)  scale(1); }
+  80%  { opacity: 1; transform: translate(-50%, -50%) rotate(960deg)  scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) rotate(1080deg) scale(1.4); }
+}
+
+@keyframes sharingan-text {
+  0%   { color: rgba(255, 60, 60, 0);    text-shadow: 0 0 20px rgba(255, 0, 0, 0); }
+  30%  { color: rgba(255, 80, 80, 0.9);  text-shadow: 0 0 30px rgba(255, 0, 0, 0.8); }
+  75%  { color: rgba(255, 80, 80, 0.9);  text-shadow: 0 0 30px rgba(255, 0, 0, 0.8); }
+  100% { color: rgba(255, 60, 60, 0);    text-shadow: 0 0 20px rgba(255, 0, 0, 0); }
+}
+
+/* Heal — double heartbeat pink pulse */
+.effect-heal {
+  animation: heal-pulse 1.4s ease-out forwards;
+}
+
+@keyframes heal-pulse {
+  0%   { background: rgba(255, 100, 150, 0);    box-shadow: inset 0 0 0 0px   rgba(255, 100, 180, 0); }
+  18%  { background: rgba(255, 120, 170, 0.35); box-shadow: inset 0 0 120px 60px rgba(255, 100, 180, 0.5); }
+  38%  { background: rgba(255, 100, 150, 0.08); box-shadow: inset 0 0 40px  15px rgba(255, 100, 180, 0.15); }
+  55%  { background: rgba(255, 140, 180, 0.3);  box-shadow: inset 0 0 110px 55px rgba(255, 100, 180, 0.45); }
+  100% { background: rgba(255, 100, 150, 0);    box-shadow: inset 0 0 0 0px   rgba(255, 100, 180, 0); }
+}
+
 /* Shot — orange piercing beam */
 .effect-shot {
   animation: shot-flash 0.4s ease-out forwards;
@@ -399,6 +522,110 @@ html, body {
   0%   { box-shadow: inset 0 0 0 0px rgba(255, 140, 60, 0);    background: rgba(255, 140, 60, 0.0); }
   12%  { box-shadow: inset 0 0 40px 20px rgba(255, 140, 60, 0.6); background: rgba(255, 140, 60, 0.25); }
   100% { box-shadow: inset 0 0 80px 40px rgba(255, 140, 60, 0); background: rgba(255, 140, 60, 0.0); }
+}
+
+/* Spirit Bomb — golden sphere descending */
+.effect-spirit-bomb {
+  animation: spirit-bomb 5s ease-in-out forwards;
+}
+
+.effect-spirit-bomb::after {
+  content: 'SPIRIT BOMB';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-family: monospace;
+  font-size: clamp(1.5rem, 5vw, 3rem);
+  font-weight: bold;
+  letter-spacing: 0.25em;
+  color: rgba(255, 255, 180, 0);
+  text-shadow: 0 0 40px rgba(200, 220, 255, 0), 0 0 100px rgba(150, 200, 255, 0);
+  animation: spirit-bomb-text 5s ease-in-out forwards;
+}
+
+@keyframes spirit-bomb {
+  0%   {
+    background: radial-gradient(circle at 50% 10%, rgba(180, 220, 255, 0) 0%, rgba(0, 0, 0, 0) 100%);
+    box-shadow: inset 0 0 0 0px rgba(180, 220, 255, 0);
+  }
+  15%  {
+    background: radial-gradient(circle at 50% 15%, rgba(180, 220, 255, 0.5) 0%, rgba(100, 160, 255, 0.2) 25%, rgba(0, 0, 0, 0) 60%);
+    box-shadow: inset 0 0 100px 40px rgba(150, 200, 255, 0.3);
+  }
+  45%  {
+    background: radial-gradient(circle at 50% 35%, rgba(255, 255, 220, 0.9) 0%, rgba(180, 220, 255, 0.7) 20%, rgba(100, 160, 255, 0.3) 50%, rgba(0, 0, 0, 0) 80%);
+    box-shadow: inset 0 0 300px 100px rgba(180, 220, 255, 0.6);
+  }
+  65%  {
+    background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 1) 0%, rgba(200, 230, 255, 0.95) 15%, rgba(150, 200, 255, 0.5) 40%, rgba(0, 0, 0, 0) 75%);
+    box-shadow: inset 0 0 500px 200px rgba(180, 220, 255, 0.8);
+  }
+  85%  {
+    background: radial-gradient(circle at 50% 50%, rgba(255, 255, 220, 0.6) 0%, rgba(180, 220, 255, 0.3) 30%, rgba(0, 0, 0, 0) 70%);
+    box-shadow: inset 0 0 200px 80px rgba(150, 200, 255, 0.3);
+  }
+  100% {
+    background: radial-gradient(circle at 50% 50%, rgba(180, 220, 255, 0) 0%, rgba(0, 0, 0, 0) 100%);
+    box-shadow: inset 0 0 0 0px rgba(180, 220, 255, 0);
+  }
+}
+
+@keyframes spirit-bomb-text {
+  0%   { color: rgba(255, 255, 180, 0);    text-shadow: 0 0 40px rgba(200, 220, 255, 0),    0 0 100px rgba(150, 200, 255, 0); }
+  25%  { color: rgba(255, 255, 220, 0.9);  text-shadow: 0 0 50px rgba(200, 230, 255, 0.8),  0 0 120px rgba(150, 200, 255, 0.5); }
+  75%  { color: rgba(255, 255, 255, 1);    text-shadow: 0 0 60px rgba(220, 240, 255, 1),    0 0 150px rgba(180, 220, 255, 0.7); }
+  100% { color: rgba(255, 255, 180, 0);    text-shadow: 0 0 40px rgba(200, 220, 255, 0),    0 0 100px rgba(150, 200, 255, 0); }
+}
+
+/* Kamehameha — blue-white energy beam */
+.effect-kamehameha {
+  animation: kamehameha 3s ease-in-out forwards;
+}
+
+.effect-kamehameha::after {
+  content: 'KAMEHAMEHA!!!';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-family: monospace;
+  font-size: clamp(1.8rem, 6vw, 3.5rem);
+  font-weight: bold;
+  letter-spacing: 0.2em;
+  color: rgba(180, 230, 255, 0);
+  text-shadow: 0 0 30px rgba(0, 150, 255, 0), 0 0 80px rgba(0, 100, 255, 0);
+  animation: kamehameha-text 3s ease-in-out forwards;
+}
+
+@keyframes kamehameha {
+  0%   {
+    background: rgba(0, 100, 255, 0);
+    box-shadow: inset 0 0 0 0px rgba(0, 150, 255, 0);
+  }
+  8%   {
+    background: rgba(100, 200, 255, 0.75);
+    box-shadow: inset 0 0 300px 120px rgba(0, 120, 255, 0.85);
+  }
+  20%  {
+    background: rgba(220, 245, 255, 0.95);
+    box-shadow: inset 0 0 500px 250px rgba(0, 160, 255, 1);
+  }
+  65%  {
+    background: rgba(180, 230, 255, 0.85);
+    box-shadow: inset 0 0 400px 180px rgba(0, 130, 255, 0.9);
+  }
+  100% {
+    background: rgba(0, 100, 255, 0);
+    box-shadow: inset 0 0 0 0px rgba(0, 150, 255, 0);
+  }
+}
+
+@keyframes kamehameha-text {
+  0%   { color: rgba(180, 230, 255, 0);    text-shadow: 0 0 30px rgba(0, 150, 255, 0),    0 0 80px rgba(0, 100, 255, 0); }
+  15%  { color: rgba(255, 255, 255, 1);    text-shadow: 0 0 40px rgba(100, 200, 255, 1),  0 0 100px rgba(0, 150, 255, 0.8); }
+  70%  { color: rgba(180, 230, 255, 0.95); text-shadow: 0 0 30px rgba(0, 150, 255, 0.9),  0 0 80px rgba(0, 100, 255, 0.6); }
+  100% { color: rgba(180, 230, 255, 0);    text-shadow: 0 0 30px rgba(0, 150, 255, 0),    0 0 80px rgba(0, 100, 255, 0); }
 }
 
 /* Domain Expansion — Unlimited Void */

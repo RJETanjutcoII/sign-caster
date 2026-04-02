@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { detectGesture, detectTwoHandGesture } from '@/lib/gestures';
+import { detectGesture, detectTwoHandGesture, detectFaceGesture } from '@/lib/gestures';
 import { ABILITIES } from '@/lib/abilities';
 import AbilityDisplay from './AbilityDisplay';
+import LoadoutHUD from './LoadoutHUD';
 
 const HOLD_THRESHOLD_MS  = 300; // ms a gesture must be held to be confirmed
 const TURN_DURATION_S    = 5;   // gesture selection window
@@ -240,6 +241,9 @@ export default function GameCanvas({ loadout, onBack }) {
 
         if (faceLandmarks) drawFaceLandmarks(ctx, faceLandmarks, w, h);
 
+        const faceGesture = detectFaceGesture(faceLandmarks);
+        let detected = null;
+
         if (handResult.landmarks && handResult.landmarks.length > 0) {
           for (const hl of handResult.landmarks) drawLandmarks(ctx, hl, w, h);
 
@@ -247,30 +251,27 @@ export default function GameCanvas({ loadout, onBack }) {
             ? detectTwoHandGesture(handResult.landmarks[0], handResult.landmarks[1])
             : null;
 
-          const detected = twoHand ?? detectGesture(handResult.landmarks[0], faceLandmarks);
-          const gesture  = detected && loadout.has(detected) ? detected : null;
+          detected = twoHand ?? detectGesture(handResult.landmarks[0], faceLandmarks);
+        }
 
-          setCurrentGesture(gesture);
+        detected = detected ?? faceGesture;
+        const gesture = detected && loadout.has(detected) ? detected : null;
 
-          // Gesture hold debounce — only update lock-in during selecting phase
-          const hold = gestureHoldRef.current;
-          if (gesture === hold.gesture) {
-            if (gesture && Date.now() - hold.since >= HOLD_THRESHOLD_MS) {
-              if (gamePhaseRef.current === 'selecting') {
-                // Record as last confirmed gesture this window
-                lastGestureRef.current      = gesture;
-                confirmedGestureRef.current = gesture;
-                setConfirmedGesture(gesture);
-              }
-              // Reset so the player can change their mind and confirm again
-              gestureHoldRef.current = { gesture: null, since: 0 };
+        setCurrentGesture(gesture);
+
+        // Gesture hold debounce — only update lock-in during selecting phase
+        const hold = gestureHoldRef.current;
+        if (gesture === hold.gesture) {
+          if (gesture && Date.now() - hold.since >= HOLD_THRESHOLD_MS) {
+            if (gamePhaseRef.current === 'selecting') {
+              lastGestureRef.current      = gesture;
+              confirmedGestureRef.current = gesture;
+              setConfirmedGesture(gesture);
             }
-          } else {
-            gestureHoldRef.current = { gesture, since: Date.now() };
+            gestureHoldRef.current = { gesture: null, since: 0 };
           }
         } else {
-          setCurrentGesture(null);
-          gestureHoldRef.current = { gesture: null, since: 0 };
+          gestureHoldRef.current = { gesture, since: Date.now() };
         }
 
         rafRef.current = requestAnimationFrame(loop);
@@ -349,6 +350,7 @@ export default function GameCanvas({ loadout, onBack }) {
       </div>
 
       <AbilityDisplay gesture={currentGesture} loadout={loadout} />
+      <LoadoutHUD loadout={loadout} />
     </div>
   );
 }

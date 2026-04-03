@@ -48,7 +48,7 @@ export default {
   detect(hands) {
     const [lm0, lm1] = hands;
     if (!lm0 || !lm1) return false;
-    return isOpenPalm(lm0) && isOpenPalm(lm1) && dist(lm0[0], lm1[0]) < 0.5;
+    return isOpenPalm(lm0) && isOpenPalm(lm1) && dist(lm0[0], lm1[0]) < 0.35;
   },
   Effect,
   resolve() { return { damage: 20 }; },

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { detectThumbsDown } from '@/lib/gestures';
 import { ABILITIES } from '@/lib/abilities';
 import { Effect as RestEffect } from '@/lib/effects/rest';
@@ -9,6 +9,8 @@ import { Effect as StunEffect } from '@/lib/effects/stun';
 import AbilityDisplay from './AbilityDisplay';
 import LoadoutHUD from './LoadoutHUD';
 import StatsHUD from './StatsHUD';
+import dynamic from 'next/dynamic';
+const DomainLayer = dynamic(() => import('./DomainLayer'), { ssr: false });
 import { INITIAL_STATE, applyStartOfTurn, resolveTurn } from '@/lib/gameState';
 
 const HOLD_THRESHOLD_MS  = 300; // ms a gesture must be held to be confirmed
@@ -53,8 +55,19 @@ export default function GameCanvas({ loadout, onBack }) {
 
   // Debug / dev helpers
   const [showLandmarks, setShowLandmarks] = useState(true);
+  const showLandmarksRef  = useRef(true);
+  const currentGestureRef = useRef(null);
+  const lastInferenceRef  = useRef(0);
 
   useEffect(() => { gamePhaseRef.current = gamePhase; }, [gamePhase]);
+  useEffect(() => { showLandmarksRef.current = showLandmarks; }, [showLandmarks]);
+
+  const hasFaceGesture = useMemo(
+    () => [...loadout].some(key => ABILITIES[key]?.gestureType === 'face'),
+    [loadout]
+  );
+  const hasFaceGestureRef = useRef(hasFaceGesture);
+  useEffect(() => { hasFaceGestureRef.current = hasFaceGesture; }, [hasFaceGesture]);
 
   // ── Turn timer ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -103,6 +116,7 @@ export default function GameCanvas({ loadout, onBack }) {
         else if (effectKey === 'fail')                             EffectComponent = FailEffect;
         else if (effectKey === 'multi_turn_start' && displayLocked) EffectComponent = ABILITIES[displayLocked]?.ChargeEffect ?? null;
         else if (effectKey === 'multi_turn_final' && displayLocked) EffectComponent = ABILITIES[displayLocked]?.Effect ?? null;
+        else if (effectKey === 'domain_start' && displayLocked)    EffectComponent = ABILITIES[displayLocked]?.Effect ?? null;
         else if (locked === 'stunned')                             EffectComponent = StunEffect;
         else if (displayLocked)                                    EffectComponent = ABILITIES[displayLocked]?.Effect ?? null;
         setActiveEffect(() => EffectComponent);
@@ -250,20 +264,22 @@ export default function GameCanvas({ loadout, onBack }) {
       function loop() {
         if (stopped) return;
 
+        const now = performance.now();
+        if (now - lastInferenceRef.current < 33) {
+          rafRef.current = requestAnimationFrame(loop);
+          return;
+        }
+        lastInferenceRef.current = now;
+
         const canvas = canvasRef.current;
         if (!canvas || !video) { rafRef.current = requestAnimationFrame(loop); return; }
 
         const { videoWidth: w, videoHeight: h } = video;
-        if (canvas.width !== w) canvas.width = w;
-        if (canvas.height !== h) canvas.height = h;
-
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, w, h);
 
         const handResult = handLandmarker.detectForVideo(video, performance.now());
 
         frameCountRef.current++;
-        if (frameCountRef.current % 2 === 1 && faceLandmarkerRef.current) {
+        if (hasFaceGestureRef.current && frameCountRef.current % 2 === 1 && faceLandmarkerRef.current) {
           const faceTs = Math.max(performance.now(), lastFaceTsRef.current + 1);
           lastFaceTsRef.current = faceTs;
           try {
@@ -275,10 +291,16 @@ export default function GameCanvas({ loadout, onBack }) {
         }
         const faceLandmarks = cachedFaceLandmarksRef.current;
 
-        if (faceLandmarks) drawFaceLandmarks(ctx, faceLandmarks, w, h);
-
         const hands = handResult.landmarks ?? [];
-        if (hands.length > 0) for (const hl of hands) drawLandmarks(ctx, hl, w, h);
+
+        if (showLandmarksRef.current) {
+          if (canvas.width !== w) canvas.width = w;
+          if (canvas.height !== h) canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.clearRect(0, 0, w, h);
+          if (faceLandmarks) drawFaceLandmarks(ctx, faceLandmarks, w, h);
+          if (hands.length > 0) for (const hl of hands) drawLandmarks(ctx, hl, w, h);
+        }
 
         let detected = null;
 
@@ -323,7 +345,10 @@ export default function GameCanvas({ loadout, onBack }) {
 
         const gesture = detected && loadout.has(detected) ? detected : null;
 
-        setCurrentGesture(gesture);
+        if (gesture !== currentGestureRef.current) {
+          currentGestureRef.current = gesture;
+          setCurrentGesture(gesture);
+        }
 
         // Gesture hold debounce — only update lock-in during selecting phase
         const hold = gestureHoldRef.current;
@@ -376,6 +401,8 @@ export default function GameCanvas({ loadout, onBack }) {
         muted
       />
       <canvas ref={canvasRef} className="game-canvas" style={showLandmarks ? {} : { display: 'none' }} />
+
+      <DomainLayer activeDomain={playerState.activeDomain} />
 
       {activeEffect && (() => { const E = activeEffect; return <E />; })()}
       {gamePhase === 'selecting' && playerState.multiTurnActive && (() => {

@@ -8,6 +8,7 @@ export const INITIAL_STATE = {
   stunTurnsRemaining: 0,
   dot: null,               // { damage, turnsRemaining }
   multiTurnActive: null,   // { abilityKey, turnsLeft } when a multi-turn move is charging
+  activeDomain: null,      // { abilityKey, turnsLeft } when a domain is active
   nullified: false,        // incoming attacks negated this turn (IT)
 };
 
@@ -21,6 +22,19 @@ export const INITIAL_STATE = {
  */
 export function applyStartOfTurn(state) {
   const s = { ...state, nullified: false };
+
+  // Tick domain passive
+  if (s.activeDomain) {
+    const domainAbility = ABILITIES[s.activeDomain.abilityKey];
+    if (domainAbility?.domainTick) {
+      const tick = domainAbility.domainTick({ caster: s });
+      if (tick.manaRegen) s.mana = Math.min(s.maxMana, s.mana + tick.manaRegen);
+      if (tick.healSelf)  s.hp   = Math.min(s.maxHp,   s.hp   + tick.healSelf);
+    }
+    s.activeDomain = s.activeDomain.turnsLeft > 1
+      ? { ...s.activeDomain, turnsLeft: s.activeDomain.turnsLeft - 1 }
+      : null;
+  }
 
   // Tick DoT
   if (s.dot && s.dot.turnsRemaining > 0) {
@@ -73,6 +87,17 @@ export function resolveTurn(state, gesture) {
 
   const ability = ABILITIES[gesture];
   if (!ability) return { newState: s, outgoing, message };
+
+  // ── Domain: activate (or replace existing) ──────────────────────────────
+  if (ability.turnType === 'domain') {
+    if ((ability.manaCost || 0) > s.mana)   return { newState: s, outgoing, message: 'Not enough mana', effectKey: 'fail' };
+    if ((ability.ultCost  || 0) > s.ultBar) return { newState: s, outgoing, message: 'Not enough ult',  effectKey: 'fail' };
+    s.mana   -= (ability.manaCost || 0);
+    s.ultBar -= (ability.ultCost  || 0);
+    s.ultBar  = Math.min(s.maxUlt, s.ultBar + (ability.ultGain || 0));
+    s.activeDomain = { abilityKey: gesture, turnsLeft: ability.turnAmount };
+    return { newState: s, outgoing, effectKey: 'domain_start', message: `${ability.name} activated!` };
+  }
 
   // ── Multi-turn: continuation / final turn ────────────────────────────────
   // Costs are paid now (deferred from first cast); resolve fires normally.

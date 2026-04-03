@@ -122,7 +122,7 @@ export default {
       if (handSize < 0.01) return false;
       return [8, 12, 16, 20].filter(i => dist(lm[i], lm[0]) > handSize * 1.5).length >= 3;
     }
-    return isOpenPalm(lm0) && isOpenPalm(lm1) && dist(lm0[0], lm1[0]) > 0.65;
+    return isOpenPalm(lm0) && isOpenPalm(lm1) && dist(lm0[0], lm1[0]) > 0.45;
   },
   ChargeEffect,
   LoopEffect,

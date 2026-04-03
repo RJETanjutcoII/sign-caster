@@ -13,6 +13,7 @@ import instant_transmission from './support/instant_transmission.jsx';
 import thumbs_up          from './support/thumbs_up.jsx';
 
 import sharingan          from './augmentation/sharingan.jsx';
+import sacred_ground      from './ultimate/sacred_ground.jsx';
 
 export const ABILITIES = {
   fist,
@@ -26,5 +27,6 @@ export const ABILITIES = {
   instant_transmission,
   thumbs_up,
   sharingan,
+  sacred_ground,
 };
 

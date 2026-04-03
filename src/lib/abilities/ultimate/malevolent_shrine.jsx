@@ -45,6 +45,49 @@ export const Effect = () => (
   </>
 );
 
+export const LoopEffect = () => (
+  <>
+    <style>{`
+      @keyframes fx-shrine-loop-pulse {
+        0%   { opacity: 0.4; }
+        50%  { opacity: 0.6; }
+        100% { opacity: 0.4; }
+      }
+      @keyframes fx-shrine-loop-slash {
+        0%   { opacity: 0; transform: scaleX(0) rotate(var(--r)); }
+        15%  { opacity: 0.35; transform: scaleX(1) rotate(var(--r)); }
+        60%  { opacity: 0.35; transform: scaleX(1) rotate(var(--r)); }
+        100% { opacity: 0; transform: scaleX(1) rotate(var(--r)); }
+      }
+      .fx-shrine-loop {
+        position: fixed; inset: 0; pointer-events: none;
+        background: radial-gradient(ellipse at center,
+          rgba(100, 0, 0, 0.5) 0%,
+          rgba(60, 0, 0, 0.3) 55%,
+          transparent 80%
+        );
+        animation: fx-shrine-loop-pulse 3.5s ease-in-out infinite;
+      }
+      .fx-shrine-loop-slash {
+        position: fixed;
+        width: 40vw; height: 2px;
+        background: linear-gradient(90deg, transparent, rgba(255,40,40,0.25), transparent);
+        transform-origin: left center;
+        animation: fx-shrine-loop-slash 3.5s ease-in-out infinite;
+        filter: blur(1px);
+      }
+    `}</style>
+    <div className="fx-shrine-loop" />
+    {SLASHES.map((s, i) => (
+      <div
+        key={i}
+        className="fx-shrine-loop-slash"
+        style={{ top: s.top, left: s.left, '--r': s.rotate, animationDelay: `${i * 0.4}s` }}
+      />
+    ))}
+  </>
+);
+
 import { dist, isFingerExtended, isFingerCurled } from '@/lib/gestures';
 
 function isPressedShape(lm) {
@@ -61,11 +104,15 @@ export default {
   manaCost: 0, ultCost: 5, ultGain: 0,
   gesture: 'Middle + ring up, index + pinky curled (both hands)',
   gestureType: 'two-hand',
+  turnType: 'domain',
+  turnAmount: 3,
   detect(hands) {
     const [lm0, lm1] = hands;
     if (!lm0 || !lm1) return false;
     return isPressedShape(lm0) && isPressedShape(lm1) && dist(lm0[0], lm1[0]) < 0.7;
   },
+  domainTick() { return {}; },
   Effect,
-  resolve() { return { dot: { damage: 20, turnsRemaining: 3 } }; },
+  LoopEffect,
+  resolve() { return {}; },
 };

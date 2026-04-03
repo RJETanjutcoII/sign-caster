@@ -4,11 +4,11 @@ import { useState } from 'react';
 import { ABILITIES } from '@/lib/abilities';
 
 const CATEGORY_CONFIG = {
-  basic:        { label: 'Basic Attacks',      max: 3 },
-  special:      { label: 'Special',            max: 1 },
-  ultimate:     { label: 'Ultimate',           max: 1 },
-  support:      { label: 'Support',            max: 1 },
-  augmentation: { label: 'Body Augmentation', max: 1 },
+  basic:             { label: 'Basic Attacks',      max: 3 },
+  special:           { label: 'Special',            max: 1 },
+  ultimate:          { label: 'Ultimate',           max: 1 },
+  support:           { label: 'Support',            max: 1 },
+  innate:            { label: 'Innate',             max: 1 },
 };
 
 export default function LoadoutSelect({ onStart }) {

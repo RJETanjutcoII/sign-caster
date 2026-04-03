@@ -36,7 +36,7 @@ export const Effect = () => (
 import { dist } from '@/lib/gestures';
 
 export default {
-  name: 'Sharingan', category: 'augmentation', color: '#ff2222',
+  name: 'Sharingan', category: 'innate', color: '#ff2222',
   manaCost: 15, ultCost: 0, ultGain: 0,
   gesture: 'Wink',
   gestureType: 'face',

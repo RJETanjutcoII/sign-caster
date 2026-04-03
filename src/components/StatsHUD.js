@@ -4,7 +4,7 @@ export default function StatsHUD({ state }) {
   if (!state) return null;
 
   const { hp, maxHp, mana, maxMana, ultBar, maxUlt,
-          stunTurnsRemaining, dot, multiTurnActive, nullified } = state;
+          stunTurnsRemaining, dot, multiTurnActive, activeDomain, nullified } = state;
 
   const hpPct   = (hp   / maxHp)   * 100;
   const mpPct   = (mana / maxMana) * 100;
@@ -14,6 +14,7 @@ export default function StatsHUD({ state }) {
   if (stunTurnsRemaining > 0) statuses.push(`STUNNED (${stunTurnsRemaining})`);
   if (dot)                    statuses.push(`BURNING ${dot.damage}/turn (${dot.turnsRemaining})`);
   if (multiTurnActive)        statuses.push('CHARGING...');
+  if (activeDomain)           statuses.push(`DOMAIN (${activeDomain.turnsLeft})`);
   if (nullified)              statuses.push('NULLIFIED');
 
   return (

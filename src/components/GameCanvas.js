@@ -1,10 +1,15 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { detectGesture, detectTwoHandGesture, detectFaceGesture } from '@/lib/gestures';
+import { useEffect, useRef, useState } from 'react';
+import { detectThumbsDown } from '@/lib/gestures';
 import { ABILITIES } from '@/lib/abilities';
+import { Effect as RestEffect } from '@/lib/effects/rest';
+import { Effect as FailEffect } from '@/lib/effects/fail';
+import { Effect as StunEffect } from '@/lib/effects/stun';
 import AbilityDisplay from './AbilityDisplay';
 import LoadoutHUD from './LoadoutHUD';
+import StatsHUD from './StatsHUD';
+import { INITIAL_STATE, applyStartOfTurn, resolveTurn } from '@/lib/gameState';
 
 const HOLD_THRESHOLD_MS  = 300; // ms a gesture must be held to be confirmed
 const TURN_DURATION_S    = 5;   // gesture selection window
@@ -27,17 +32,27 @@ export default function GameCanvas({ loadout, onBack }) {
 
   // Turn state
   const [gamePhase,       setGamePhase]       = useState('selecting'); // 'selecting' | 'resolving'
-  const [timeLeft,        setTimeLeft]        = useState(TURN_DURATION_S);
+  const timeLeftRef = useRef(TURN_DURATION_S);
+  const [turnKey,         setTurnKey]         = useState(0); // increments each selection phase to restart the bar animation
   const [confirmedGesture, setConfirmedGesture] = useState(null); // last confirmed during window
   const [lockedGesture,   setLockedGesture]   = useState(null);   // locked in at window end
   const [activeEffect,    setActiveEffect]    = useState(null);
+  const [resolveMessage,  setResolveMessage]  = useState(null);
   const [currentGesture,  setCurrentGesture]  = useState(null);
   const [status,          setStatus]          = useState('Initializing...');
 
   // Ref copy of gamePhase so the rAF loop can read it without stale closures
   const gamePhaseRef          = useRef('selecting');
-  const lastGestureRef        = useRef(null); // most recently confirmed gesture this window
-  const confirmedGestureRef   = useRef(null); // synced with confirmedGesture for rAF reads
+  const lastGestureRef        = useRef(null);
+  const confirmedGestureRef   = useRef(null);
+
+  // Player game state
+  const [playerState, setPlayerState] = useState(INITIAL_STATE);
+  const playerStateRef  = useRef(INITIAL_STATE);
+  const forcedGestureRef = useRef(null); // 'stunned' | 'spirit_bomb' | null
+
+  // Debug / dev helpers
+  const [showLandmarks, setShowLandmarks] = useState(true);
 
   useEffect(() => { gamePhaseRef.current = gamePhase; }, [gamePhase]);
 
@@ -45,28 +60,53 @@ export default function GameCanvas({ loadout, onBack }) {
   useEffect(() => {
     if (gamePhase !== 'selecting') return;
 
-    // Reset for this window
-    setTimeLeft(TURN_DURATION_S);
+    // Restart the timer bar animation for this turn
+    setTurnKey(k => k + 1);
+
+    // Start-of-turn: tick DoT, stun, determine if a gesture is forced
+    const { newState: sotState, forcedGesture } = applyStartOfTurn(playerStateRef.current);
+    playerStateRef.current = sotState;
+    setPlayerState(sotState);
+    forcedGestureRef.current = forcedGesture;
+
+    // Reset selection UI
+    timeLeftRef.current = TURN_DURATION_S;
     setConfirmedGesture(null);
+    setResolveMessage(null);
     lastGestureRef.current      = null;
     confirmedGestureRef.current = null;
 
     const interval = setInterval(() => {
-      setTimeLeft(prev => {
-        const next = prev - 1;
-        if (next <= 0) {
-          clearInterval(interval);
-          const locked = lastGestureRef.current;
-          setLockedGesture(locked);
-          setGamePhase('resolving');
-          if (locked) {
-            const ability = ABILITIES[locked];
-            if (ability) setActiveEffect(ability.effectClass);
-          }
-          return 0;
-        }
-        return next;
-      });
+      let didExpire = false;
+
+      timeLeftRef.current -= 1;
+      if (timeLeftRef.current <= 0) { didExpire = true; clearInterval(interval); }
+
+      if (didExpire) {
+        // Forced gesture (stun / spirit bomb) overrides player choice
+        const locked = forcedGestureRef.current ?? lastGestureRef.current;
+        forcedGestureRef.current = null;
+
+        // Resolve mechanics — runs exactly once per turn
+        const { newState: resolved, effectKey, message: resolveMsg } = resolveTurn(playerStateRef.current, locked);
+        playerStateRef.current = resolved;
+        setPlayerState(resolved);
+        setResolveMessage(resolveMsg ?? null);
+
+        // Visual — pick the Effect component to render
+        const displayLocked = locked === 'stunned' ? null : locked;
+        setLockedGesture(displayLocked);
+        setGamePhase('resolving');
+
+        let EffectComponent = null;
+        if (effectKey === 'rest')                                  EffectComponent = RestEffect;
+        else if (effectKey === 'fail')                             EffectComponent = FailEffect;
+        else if (effectKey === 'multi_turn_start' && displayLocked) EffectComponent = ABILITIES[displayLocked]?.ChargeEffect ?? null;
+        else if (effectKey === 'multi_turn_final' && displayLocked) EffectComponent = ABILITIES[displayLocked]?.Effect ?? null;
+        else if (locked === 'stunned')                             EffectComponent = StunEffect;
+        else if (displayLocked)                                    EffectComponent = ABILITIES[displayLocked]?.Effect ?? null;
+        setActiveEffect(() => EffectComponent);
+      }
     }, 1000);
 
     return () => clearInterval(interval);
@@ -85,10 +125,6 @@ export default function GameCanvas({ loadout, onBack }) {
   }, [gamePhase]);
 
   // ── Drawing ───────────────────────────────────────────────────────────────
-
-  const handleAnimationEnd = useCallback(() => {
-    // Don't clear the effect early — the resolving timer handles that
-  }, []);
 
   function drawFaceLandmarks(ctx, landmarks, width, height) {
     ctx.fillStyle = 'rgba(180, 130, 255, 0.55)';
@@ -241,20 +277,50 @@ export default function GameCanvas({ loadout, onBack }) {
 
         if (faceLandmarks) drawFaceLandmarks(ctx, faceLandmarks, w, h);
 
-        const faceGesture = detectFaceGesture(faceLandmarks);
+        const hands = handResult.landmarks ?? [];
+        if (hands.length > 0) for (const hl of hands) drawLandmarks(ctx, hl, w, h);
+
         let detected = null;
 
-        if (handResult.landmarks && handResult.landmarks.length > 0) {
-          for (const hl of handResult.landmarks) drawLandmarks(ctx, hl, w, h);
-
-          const twoHand = handResult.landmarks.length >= 2
-            ? detectTwoHandGesture(handResult.landmarks[0], handResult.landmarks[1])
-            : null;
-
-          detected = twoHand ?? detectGesture(handResult.landmarks[0], faceLandmarks);
+        // Phase 1 — two-hand (must run before single-hand to avoid false positives)
+        if (!detected && hands.length >= 2) {
+          for (const key of loadout) {
+            const ab = ABILITIES[key];
+            if (ab.gestureType === 'two-hand' && ab.detect(hands, faceLandmarks)) {
+              detected = key; break;
+            }
+          }
+        }
+        // Phase 2 — single-hand
+        if (!detected && hands.length > 0) {
+          for (const key of loadout) {
+            const ab = ABILITIES[key];
+            if (ab.gestureType === 'single' && ab.detect(hands, faceLandmarks)) {
+              detected = key; break;
+            }
+          }
+        }
+        // Phase 3 — face-only
+        if (!detected) {
+          for (const key of loadout) {
+            const ab = ABILITIES[key];
+            if (ab.gestureType === 'face' && ab.detect(hands, faceLandmarks)) {
+              detected = key; break;
+            }
+          }
         }
 
-        detected = detected ?? faceGesture;
+        // Thumbs down cancels the confirmed move
+        if (hands.length > 0 &&
+            detectThumbsDown(hands[0]) &&
+            gamePhaseRef.current === 'selecting' &&
+            confirmedGestureRef.current &&
+            !playerStateRef.current.multiTurnActive) {
+          lastGestureRef.current      = null;
+          confirmedGestureRef.current = null;
+          setConfirmedGesture(null);
+        }
+
         const gesture = detected && loadout.has(detected) ? detected : null;
 
         setCurrentGesture(gesture);
@@ -263,7 +329,7 @@ export default function GameCanvas({ loadout, onBack }) {
         const hold = gestureHoldRef.current;
         if (gesture === hold.gesture) {
           if (gesture && Date.now() - hold.since >= HOLD_THRESHOLD_MS) {
-            if (gamePhaseRef.current === 'selecting') {
+            if (gamePhaseRef.current === 'selecting' && !playerStateRef.current.multiTurnActive) {
               lastGestureRef.current      = gesture;
               confirmedGestureRef.current = gesture;
               setConfirmedGesture(gesture);
@@ -298,44 +364,69 @@ export default function GameCanvas({ loadout, onBack }) {
 
   // ── Render ────────────────────────────────────────────────────────────────
 
-  const timerPct   = (timeLeft / TURN_DURATION_S) * 100;
-  const timerColor = timeLeft > 3 ? '#44ff88' : timeLeft > 1 ? '#ffcc44' : '#ff4444';
 
   return (
     <div className="game-root">
       {status && <div className="status-overlay">{status}</div>}
 
-      {activeEffect && (
-        <div
-          className={`effect-overlay ${activeEffect}`}
-          onAnimationEnd={handleAnimationEnd}
-        />
-      )}
+      <video
+        ref={videoRef}
+        className={showLandmarks ? 'game-video' : 'game-video game-video--visible'}
+        playsInline
+        muted
+      />
+      <canvas ref={canvasRef} className="game-canvas" style={showLandmarks ? {} : { display: 'none' }} />
 
-      <video ref={videoRef} className="game-video" playsInline muted />
-      <canvas ref={canvasRef} className="game-canvas" />
+      {activeEffect && (() => { const E = activeEffect; return <E />; })()}
+      {gamePhase === 'selecting' && playerState.multiTurnActive && (() => {
+        const L = ABILITIES[playerState.multiTurnActive.abilityKey]?.LoopEffect;
+        return L ? <L /> : null;
+      })()}
 
       <button className="back-button" onClick={onBack}>← Loadout</button>
+
+      {/* Debug panel — top right */}
+      <div className="debug-panel">
+        <span className="debug-label">DEBUG</span>
+        <button className="debug-btn" onClick={() => {
+          const s = { ...playerStateRef.current, mana: playerStateRef.current.maxMana };
+          playerStateRef.current = s;
+          setPlayerState(s);
+        }}>Fill Mana</button>
+        <button className="debug-btn" onClick={() => {
+          const s = { ...playerStateRef.current, ultBar: playerStateRef.current.maxUlt };
+          playerStateRef.current = s;
+          setPlayerState(s);
+        }}>Fill Ult</button>
+      </div>
+
+      {/* Landmark toggle — bottom left */}
+      <button
+        className="landmark-toggle-btn"
+        onClick={() => setShowLandmarks(v => !v)}
+      >
+        {showLandmarks ? '📷 Camera' : '✋ Landmarks'}
+      </button>
 
       {/* Turn timer bar */}
       <div className="turn-timer">
         <div className="turn-timer-label">
           {gamePhase === 'selecting'
-            ? (confirmedGesture ? `READY: ${ABILITIES[confirmedGesture]?.name}` : 'SELECT YOUR MOVE')
-            : (lockedGesture ? `${ABILITIES[lockedGesture]?.name?.toUpperCase()}` : 'NO MOVE')}
+            ? (playerState.multiTurnActive
+                ? `Charging ${ABILITIES[playerState.multiTurnActive.abilityKey]?.name}`
+                : confirmedGesture
+                  ? `READY: ${ABILITIES[confirmedGesture]?.name}`
+                  : 'SELECT YOUR MOVE')
+            : (resolveMessage ?? ABILITIES[lockedGesture]?.name?.toUpperCase() ?? 'NO MOVE')}
         </div>
         <div className="turn-timer-track">
-          <div
-            className="turn-timer-fill"
-            style={{
-              width: gamePhase === 'selecting' ? `${timerPct}%` : '0%',
-              background: timerColor,
-            }}
-          />
+          {gamePhase === 'selecting' && (
+            <div key={turnKey} className="turn-timer-fill" />
+          )}
         </div>
 
         {/* Only show cancel once a move has been confirmed */}
-        {gamePhase === 'selecting' && confirmedGesture && (
+        {gamePhase === 'selecting' && confirmedGesture && !playerState.multiTurnActive && (
           <button
             className="cancel-move-btn"
             onClick={() => {
@@ -349,6 +440,7 @@ export default function GameCanvas({ loadout, onBack }) {
         )}
       </div>
 
+      <StatsHUD state={playerState} />
       <AbilityDisplay gesture={currentGesture} loadout={loadout} />
       <LoadoutHUD loadout={loadout} />
     </div>

@@ -161,6 +161,80 @@ html, body {
   pointer-events: none;
 }
 
+/* Raw camera mode — fill viewport, mirrored */
+.game-video--visible {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 1;
+  transform: scaleX(-1);
+}
+
+/* ── Debug panel ────────────────────────────────────────── */
+
+.debug-panel {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 100, 100, 0.3);
+  border-radius: 8px;
+  padding: 0.4rem 0.7rem;
+  backdrop-filter: blur(6px);
+}
+
+.debug-label {
+  font-size: 0.6rem;
+  letter-spacing: 0.12em;
+  color: rgba(255, 100, 100, 0.6);
+  margin-right: 0.2rem;
+}
+
+.debug-btn {
+  background: rgba(255, 100, 100, 0.12);
+  border: 1px solid rgba(255, 100, 100, 0.3);
+  border-radius: 4px;
+  padding: 0.25rem 0.6rem;
+  color: rgba(255, 180, 180, 0.85);
+  font-family: monospace;
+  font-size: 0.7rem;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.debug-btn:hover {
+  background: rgba(255, 100, 100, 0.25);
+  border-color: rgba(255, 100, 100, 0.6);
+}
+
+/* ── Landmark toggle ────────────────────────────────────── */
+
+.landmark-toggle-btn {
+  position: absolute;
+  bottom: 1rem;
+  left: 1rem;
+  z-index: 50;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  padding: 0.4rem 0.9rem;
+  color: rgba(255, 255, 255, 0.6);
+  font-family: monospace;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  backdrop-filter: blur(6px);
+}
+
+.landmark-toggle-btn:hover {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
 /* Canvas fills the viewport */
 .game-canvas {
   position: absolute;
@@ -177,32 +251,40 @@ html, body {
   top: 1rem;
   left: 50%;
   transform: translateX(-50%);
-  width: min(420px, 80vw);
+  width: min(640px, 90vw);
   z-index: 20;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.5rem;
 }
 
 .turn-timer-label {
-  font-size: 0.75rem;
-  letter-spacing: 0.12em;
-  color: rgba(255, 255, 255, 0.65);
+  font-size: 2rem;
+  letter-spacing: 0.14em;
+  color: rgba(255, 255, 255, 0.8);
 }
 
 .turn-timer-track {
   width: 100%;
-  height: 4px;
+  height: 14px;
   background: rgba(255, 255, 255, 0.1);
-  border-radius: 2px;
+  border-radius: 7px;
   overflow: hidden;
 }
 
 .turn-timer-fill {
   height: 100%;
-  border-radius: 2px;
-  transition: width 0.95s linear, background 0.3s;
+  border-radius: 7px;
+  animation: timer-drain 5s linear forwards;
+  width: 100%;
+}
+
+@keyframes timer-drain {
+  0%   { width: 100%; background: #44ff88; }
+  60%  { width:  40%; background: #44ff88; }
+  80%  { width:  20%; background: #ffcc44; }
+  100% { width:   0%; background: #ff4444; }
 }
 
 .cancel-move-btn {
@@ -316,6 +398,81 @@ html, body {
   transition: width 0.05s linear;
 }
 
+/* ── Stats HUD ──────────────────────────────────────────── */
+
+.stats-hud {
+  position: absolute;
+  top: 3.5rem;
+  left: 1rem;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  padding: 1.2rem 1.5rem;
+  min-width: 640px;
+  backdrop-filter: blur(6px);
+}
+
+.stats-row {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.stats-label {
+  font-size: 0.9rem;
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.5);
+  width: 3rem;
+  flex-shrink: 0;
+}
+
+.stats-track {
+  flex: 1;
+  height: 32px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.stats-fill {
+  height: 100%;
+  border-radius: 16px;
+  transition: width 0.4s ease;
+}
+
+.stats-fill--hp  { background: #e84040; box-shadow: 0 0 10px rgba(232, 64, 64, 0.7); }
+.stats-fill--mp  { background: #4488ff; box-shadow: 0 0 10px rgba(68, 136, 255, 0.7); }
+.stats-fill--ult { background: #ffcc22; box-shadow: 0 0 10px rgba(255, 204, 34, 0.7); }
+
+.stats-value {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.6);
+  width: 4rem;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.stats-statuses {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.2rem;
+}
+
+.stats-status {
+  font-size: 0.55rem;
+  letter-spacing: 0.08em;
+  color: #ffaa44;
+  background: rgba(255, 140, 40, 0.12);
+  border: 1px solid rgba(255, 140, 40, 0.3);
+  border-radius: 3px;
+  padding: 0.1rem 0.35rem;
+}
+
 /* ── Loadout HUD ────────────────────────────────────────── */
 
 .loadout-hud {
@@ -325,47 +482,47 @@ html, body {
   transform: translateY(-50%);
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 1.25rem;
   z-index: 20;
 }
 
 .loadout-hud-entry {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 1.1rem;
   background: rgba(0, 0, 0, 0.5);
   border: 1px solid rgba(255, 255, 255, 0.07);
-  border-left: 2px solid var(--ability-color);
-  border-radius: 6px;
-  padding: 0.35rem 0.6rem;
+  border-left: 5px solid var(--ability-color);
+  border-radius: 14px;
+  padding: 0.9rem 1.4rem;
   backdrop-filter: blur(4px);
 }
 
 .loadout-hud-dot {
-  width: 6px;
-  height: 6px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   background: var(--ability-color);
   flex-shrink: 0;
-  box-shadow: 0 0 6px var(--ability-color);
+  box-shadow: 0 0 12px var(--ability-color);
 }
 
 .loadout-hud-text {
   display: flex;
   flex-direction: column;
-  gap: 0.1rem;
+  gap: 0.3rem;
 }
 
 .loadout-hud-name {
-  font-size: 0.72rem;
+  font-size: 1.4rem;
   font-weight: bold;
   color: var(--ability-color);
   letter-spacing: 0.04em;
 }
 
 .loadout-hud-hint {
-  font-size: 0.6rem;
-  color: rgba(255, 255, 255, 0.35);
+  font-size: 1rem;
+  color: rgba(255, 255, 255, 0.4);
   letter-spacing: 0.02em;
 }
 
@@ -498,6 +655,30 @@ html, body {
   30%  { color: rgba(255, 80, 80, 0.9);  text-shadow: 0 0 30px rgba(255, 0, 0, 0.8); }
   75%  { color: rgba(255, 80, 80, 0.9);  text-shadow: 0 0 30px rgba(255, 0, 0, 0.8); }
   100% { color: rgba(255, 60, 60, 0);    text-shadow: 0 0 20px rgba(255, 0, 0, 0); }
+}
+
+/* Rest — soft green mana restore */
+.effect-rest {
+  animation: rest-restore 1s ease-out forwards;
+}
+
+@keyframes rest-restore {
+  0%   { box-shadow: inset 0 0 0 0px rgba(60, 200, 120, 0);    background: rgba(60, 200, 120, 0); }
+  20%  { box-shadow: inset 0 0 80px 30px rgba(60, 200, 120, 0.25); background: rgba(60, 200, 120, 0.1); }
+  100% { box-shadow: inset 0 0 0 0px rgba(60, 200, 120, 0);    background: rgba(60, 200, 120, 0); }
+}
+
+/* Failed cast — grey fizzle */
+.effect-fail {
+  animation: fail-fizzle 0.6s ease-out forwards;
+}
+
+@keyframes fail-fizzle {
+  0%   { background: rgba(180, 180, 180, 0);    box-shadow: inset 0 0 0 0px rgba(160, 160, 160, 0); }
+  15%  { background: rgba(180, 180, 180, 0.25); box-shadow: inset 0 0 60px 20px rgba(160, 160, 160, 0.3); }
+  40%  { background: rgba(180, 180, 180, 0.1);  box-shadow: inset 0 0 30px 10px rgba(160, 160, 160, 0.15); }
+  60%  { background: rgba(180, 180, 180, 0.15); box-shadow: inset 0 0 40px 15px rgba(160, 160, 160, 0.2); }
+  100% { background: rgba(180, 180, 180, 0);    box-shadow: inset 0 0 0 0px rgba(160, 160, 160, 0); }
 }
 
 /* Heal — double heartbeat pink pulse */

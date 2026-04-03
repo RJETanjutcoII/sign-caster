@@ -1,0 +1,30 @@
+import fist               from './basic/fist.jsx';
+import finger_gun         from './basic/finger_gun.jsx';
+
+import point              from './special/point.jsx';
+import kamehameha         from './special/kamehameha.jsx';
+
+import spirit_bomb        from './ultimate/spirit_bomb.jsx';
+import unlimited_void     from './ultimate/unlimited_void.jsx';
+import malevolent_shrine  from './ultimate/malevolent_shrine.jsx';
+import mahoraga           from './ultimate/mahoraga.jsx';
+
+import instant_transmission from './support/instant_transmission.jsx';
+import thumbs_up          from './support/thumbs_up.jsx';
+
+import sharingan          from './augmentation/sharingan.jsx';
+
+export const ABILITIES = {
+  fist,
+  finger_gun,
+  point,
+  kamehameha,
+  spirit_bomb,
+  unlimited_void,
+  malevolent_shrine,
+  mahoraga,
+  instant_transmission,
+  thumbs_up,
+  sharingan,
+};
+

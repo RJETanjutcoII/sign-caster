@@ -3,20 +3,6 @@
 import { useState } from 'react';
 import { ABILITIES } from '@/lib/abilities';
 
-const GESTURE_LABELS = {
-  fist:                 'Fist',
-  finger_gun:           'Finger gun (index + thumb up)',
-  point:                'Point (index up)',
-  spirit_bomb:          'Both open palms spread wide (facing camera)',
-  kamehameha:           'Both hands open, wrists together (firing pose)',
-  unlimited_void:       'Two fingers, chest height',
-  malevolent_shrine:    'Middle + ring up, index + pinky curled (both hands)',
-  mahoraga:             'Both hands, fists raised',
-  instant_transmission: 'Two fingers, to forehead',
-  sharingan:            'Wide eyes',
-  thumbs_up:            'Thumbs up',
-};
-
 const CATEGORY_CONFIG = {
   basic:        { label: 'Basic Attacks',      max: 3 },
   special:      { label: 'Special',            max: 1 },
@@ -69,7 +55,7 @@ export default function LoadoutSelect({ onStart }) {
                     disabled={maxed}
                   >
                     <span className="loadout-card-name">{ability.name}</span>
-                    <span className="loadout-card-gesture">{GESTURE_LABELS[key]}</span>
+                    <span className="loadout-card-gesture">{ability.gesture}</span>
                   </button>
                 );
               })}

@@ -11,50 +11,61 @@ import LoadoutHUD from './LoadoutHUD';
 import StatsHUD from './StatsHUD';
 import dynamic from 'next/dynamic';
 const DomainLayer = dynamic(() => import('./DomainLayer'), { ssr: false });
-import { INITIAL_STATE, applyStartOfTurn, resolveTurn } from '@/lib/gameState';
+import { INITIAL_STATE, applyStartOfTurn, applyIncoming, resolveOrderedTurns } from '@/lib/gameState';
+import { BOT_LOADOUT, chooseBotGesture } from '@/lib/bot';
 
-const HOLD_THRESHOLD_MS  = 300; // ms a gesture must be held to be confirmed
-const TURN_DURATION_S    = 5;   // gesture selection window
-const RESOLVE_DURATION_S = 4;   // time to display the effect before next round
+const HOLD_THRESHOLD_MS  = 300;
+const TURN_DURATION_S    = 5;
+const RESOLVE_DURATION_S = 4;
+const PLAYER_SPEED       = 2;
+const BOT_SPEED          = 1;
 
-export default function GameCanvas({ loadout, onBack }) {
+const ZOOM        = 1.25;
+const ZOOM_OFFSET = (1 - 1 / ZOOM) / 2;
+const ZOOM_SCALE  = 1 / ZOOM;
+
+export default function BotCanvas({ loadout, onBack }) {
   const videoRef          = useRef(null);
   const canvasRef         = useRef(null);
   const landmarkerRef     = useRef(null);
   const faceLandmarkerRef = useRef(null);
   const rafRef            = useRef(null);
+  const zoomCanvasRef     = useRef(null);
 
-  // Face detection alternates frames to avoid WASM timestamp conflicts
-  const frameCountRef        = useRef(0);
-  const lastFaceTsRef        = useRef(0);
+  const frameCountRef          = useRef(0);
+  const lastFaceTsRef          = useRef(0);
   const cachedFaceLandmarksRef = useRef(null);
+  const gestureHoldRef         = useRef({ gesture: null, since: 0 });
 
-  // Gesture hold debounce — lives in a ref so the rAF closure always sees current value
-  const gestureHoldRef = useRef({ gesture: null, since: 0 });
-
-  // Turn state
-  const [gamePhase,       setGamePhase]       = useState('warmup'); // 'warmup' | 'selecting' | 'resolving'
+  // ── Turn state ────────────────────────────────────────────────────────────
+  const [gamePhase,        setGamePhase]        = useState('warmup'); // 'warmup' | 'selecting' | 'resolving'
   const timeLeftRef = useRef(TURN_DURATION_S);
-  const [turnKey,         setTurnKey]         = useState(0); // increments each selection phase to restart the bar animation
-  const [confirmedGesture, setConfirmedGesture] = useState(null); // last confirmed during window
-  const [lockedGesture,   setLockedGesture]   = useState(null);   // locked in at window end
-  const [activeEffect,    setActiveEffect]    = useState(null);
-  const [resolveMessage,  setResolveMessage]  = useState(null);
-  const [currentGesture,  setCurrentGesture]  = useState(null);
-  const [status,          setStatus]          = useState('Initializing...');
+  const [turnKey,          setTurnKey]          = useState(0);
+  const [confirmedGesture, setConfirmedGesture] = useState(null);
+  const [lockedGesture,    setLockedGesture]    = useState(null);
+  const [activeEffect,     setActiveEffect]     = useState(null);
+  const [resolveMessage,   setResolveMessage]   = useState(null);
+  const [currentGesture,   setCurrentGesture]   = useState(null);
+  const [status,           setStatus]           = useState('Initializing...');
+  const [gameOver,         setGameOver]         = useState(null); // null | 'win' | 'loss'
 
-  // Ref copy of gamePhase so the rAF loop can read it without stale closures
-  const gamePhaseRef          = useRef('warmup');
-  const warmupCountRef        = useRef(0);
-  const lastGestureRef        = useRef(null);
-  const confirmedGestureRef   = useRef(null);
+  const gamePhaseRef        = useRef('warmup');
+  const warmupCountRef      = useRef(0);
+  const lastGestureRef      = useRef(null);
+  const confirmedGestureRef = useRef(null);
 
-  // Player game state
+  // ── Player state ──────────────────────────────────────────────────────────
   const [playerState, setPlayerState] = useState(INITIAL_STATE);
   const playerStateRef  = useRef(INITIAL_STATE);
-  const forcedGestureRef = useRef(null); // 'stunned' | 'spirit_bomb' | null
+  const forcedGestureRef = useRef(null);
 
-  // Debug / dev helpers
+  // ── Bot state ─────────────────────────────────────────────────────────────
+  const [botState, setBotState] = useState(INITIAL_STATE);
+  const botStateRef        = useRef(INITIAL_STATE);
+  const botForcedGestureRef = useRef(null);
+  const botLockedGestureRef = useRef(null);
+
+  // ── Dev helpers ───────────────────────────────────────────────────────────
   const [showLandmarks, setShowLandmarks] = useState(false);
   const showLandmarksRef  = useRef(false);
   const currentGestureRef = useRef(null);
@@ -73,15 +84,31 @@ export default function GameCanvas({ loadout, onBack }) {
   // ── Turn timer ────────────────────────────────────────────────────────────
   useEffect(() => {
     if (gamePhase !== 'selecting') return;
+    if (gameOver) return;
 
-    // Restart the timer bar animation for this turn
     setTurnKey(k => k + 1);
 
-    // Start-of-turn: tick DoT, stun, determine if a gesture is forced
-    const { newState: sotState, forcedGesture } = applyStartOfTurn(playerStateRef.current);
+    // Start of turn — player
+    const { newState: sotState, forcedGesture, domainOutgoing: playerDomainOut } = applyStartOfTurn(playerStateRef.current);
     playerStateRef.current = sotState;
-    setPlayerState(sotState);
     forcedGestureRef.current = forcedGesture;
+
+    // Start of turn — bot
+    const { newState: botSot, forcedGesture: botForced, domainOutgoing: botDomainOut } = applyStartOfTurn(botStateRef.current);
+    botStateRef.current = botSot;
+    const botChoice = botForced ?? chooseBotGesture(botSot, BOT_LOADOUT);
+    botLockedGestureRef.current = botChoice;
+    botForcedGestureRef.current = botForced;
+
+    // Cross-apply domain outgoing (e.g. Unlimited Void stun, Malevolent Shrine damage)
+    if (playerDomainOut.damage > 0 || playerDomainOut.stunTurns > 0) {
+      botStateRef.current = applyIncoming(botStateRef.current, playerDomainOut);
+    }
+    if (botDomainOut.damage > 0 || botDomainOut.stunTurns > 0) {
+      playerStateRef.current = applyIncoming(playerStateRef.current, botDomainOut);
+    }
+    setPlayerState(playerStateRef.current);
+    setBotState(botStateRef.current);
 
     // Reset selection UI
     timeLeftRef.current = TURN_DURATION_S;
@@ -91,41 +118,51 @@ export default function GameCanvas({ loadout, onBack }) {
     confirmedGestureRef.current = null;
 
     const interval = setInterval(() => {
-      let didExpire = false;
-
       timeLeftRef.current -= 1;
-      if (timeLeftRef.current <= 0) { didExpire = true; clearInterval(interval); }
+      if (timeLeftRef.current > 0) return;
 
-      if (didExpire) {
-        // Forced gesture (stun / spirit bomb) overrides player choice
-        const locked = forcedGestureRef.current ?? lastGestureRef.current;
-        forcedGestureRef.current = null;
+      clearInterval(interval);
 
-        // Resolve mechanics — runs exactly once per turn
-        const { newState: resolved, effectKey, message: resolveMsg } = resolveTurn(playerStateRef.current, locked);
-        playerStateRef.current = resolved;
-        setPlayerState(resolved);
-        setResolveMessage(resolveMsg ?? null);
+      const playerLocked = forcedGestureRef.current ?? lastGestureRef.current;
+      const botLocked    = botLockedGestureRef.current;
+      forcedGestureRef.current = null;
 
-        // Visual — pick the Effect component to render
-        const displayLocked = locked === 'stunned' ? null : locked;
-        setLockedGesture(displayLocked);
-        setGamePhase('resolving');
+      // Resolve with speed/priority ordering
+      const { playerFinal, botFinal, effectKey, message: resolveMsg } =
+        resolveOrderedTurns(
+          playerStateRef.current, playerLocked, PLAYER_SPEED,
+          botStateRef.current,    botLocked,    BOT_SPEED
+        );
 
-        let EffectComponent = null;
-        if (effectKey === 'rest')                                  EffectComponent = RestEffect;
-        else if (effectKey === 'fail')                             EffectComponent = FailEffect;
-        else if (effectKey === 'multi_turn_start' && displayLocked) EffectComponent = ABILITIES[displayLocked]?.ChargeEffect ?? null;
-        else if (effectKey === 'multi_turn_final' && displayLocked) EffectComponent = ABILITIES[displayLocked]?.Effect ?? null;
-        else if (effectKey === 'domain_start' && displayLocked)    EffectComponent = ABILITIES[displayLocked]?.Effect ?? null;
-        else if (locked === 'stunned')                             EffectComponent = StunEffect;
-        else if (displayLocked)                                    EffectComponent = ABILITIES[displayLocked]?.Effect ?? null;
-        setActiveEffect(() => EffectComponent);
+      playerStateRef.current = playerFinal;
+      botStateRef.current    = botFinal;
+      setPlayerState(playerFinal);
+      setBotState(botFinal);
+      setResolveMessage(resolveMsg ?? null);
+
+      // Win / loss check
+      if (playerFinal.hp <= 0 || botFinal.hp <= 0) {
+        setGameOver(playerFinal.hp <= 0 ? 'loss' : 'win');
       }
+
+      // Pick effect component
+      const displayLocked = playerLocked === 'stunned' ? null : playerLocked;
+      setLockedGesture(displayLocked);
+      setGamePhase('resolving');
+
+      let EffectComponent = null;
+      if (effectKey === 'rest')                                    EffectComponent = RestEffect;
+      else if (effectKey === 'fail')                               EffectComponent = FailEffect;
+      else if (effectKey === 'multi_turn_start' && displayLocked)  EffectComponent = ABILITIES[displayLocked]?.ChargeEffect ?? null;
+      else if (effectKey === 'multi_turn_final' && displayLocked)  EffectComponent = ABILITIES[displayLocked]?.Effect ?? null;
+      else if (effectKey === 'domain_start' && displayLocked)      EffectComponent = ABILITIES[displayLocked]?.Effect ?? null;
+      else if (playerLocked === 'stunned')                         EffectComponent = StunEffect;
+      else if (displayLocked)                                      EffectComponent = ABILITIES[displayLocked]?.Effect ?? null;
+      setActiveEffect(() => EffectComponent);
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [gamePhase]);
+  }, [gamePhase, gameOver]);
 
   useEffect(() => {
     if (gamePhase !== 'resolving') return;
@@ -133,26 +170,19 @@ export default function GameCanvas({ loadout, onBack }) {
     const timeout = setTimeout(() => {
       setActiveEffect(null);
       setLockedGesture(null);
-      setGamePhase('selecting');
+      if (!gameOver) setGamePhase('selecting');
     }, RESOLVE_DURATION_S * 1000);
 
     return () => clearTimeout(timeout);
-  }, [gamePhase]);
+  }, [gamePhase, gameOver]);
 
   // ── Drawing ───────────────────────────────────────────────────────────────
-
   function drawFaceLandmarks(ctx, landmarks, width, height) {
-    // Landmarks actively used by ability detect functions — highlighted yellow
-    const HIGHLIGHTED = new Set([
-      10,                                      // IT: forehead center
-      33, 133, 159, 145, 160, 144,             // Sharingan: left eye
-      362, 263, 386, 374, 387, 373,            // Sharingan: right eye
-    ]);
-
+    const HIGHLIGHTED = new Set([10, 33, 133, 159, 145, 160, 144, 362, 263, 386, 374, 387, 373]);
     for (let i = 0; i < landmarks.length; i++) {
       const lm = landmarks[i];
-      const x = (1 - lm.x) * width;
-      const y = lm.y * height;
+      const x = (1 - (ZOOM_OFFSET + lm.x * ZOOM_SCALE)) * width;
+      const y = (ZOOM_OFFSET + lm.y * ZOOM_SCALE) * height;
       ctx.beginPath();
       if (HIGHLIGHTED.has(i)) {
         ctx.arc(x, y, 2.5, 0, Math.PI * 2);
@@ -174,24 +204,21 @@ export default function GameCanvas({ loadout, onBack }) {
       [0,17],[17,18],[18,19],[19,20],
       [5,9],[9,13],[13,17],
     ];
-
     ctx.strokeStyle = 'rgba(0, 255, 180, 0.8)';
     ctx.lineWidth = 2;
-
     for (const [a, b] of CONNECTIONS) {
-      const ax = (1 - landmarks[a].x) * width;
-      const ay = landmarks[a].y * height;
-      const bx = (1 - landmarks[b].x) * width;
-      const by = landmarks[b].y * height;
+      const ax = (1 - (ZOOM_OFFSET + landmarks[a].x * ZOOM_SCALE)) * width;
+      const ay = (ZOOM_OFFSET + landmarks[a].y * ZOOM_SCALE) * height;
+      const bx = (1 - (ZOOM_OFFSET + landmarks[b].x * ZOOM_SCALE)) * width;
+      const by = (ZOOM_OFFSET + landmarks[b].y * ZOOM_SCALE) * height;
       ctx.beginPath();
       ctx.moveTo(ax, ay);
       ctx.lineTo(bx, by);
       ctx.stroke();
     }
-
     for (const lm of landmarks) {
-      const x = (1 - lm.x) * width;
-      const y = lm.y * height;
+      const x = (1 - (ZOOM_OFFSET + lm.x * ZOOM_SCALE)) * width;
+      const y = (ZOOM_OFFSET + lm.y * ZOOM_SCALE) * height;
       ctx.beginPath();
       ctx.arc(x, y, 4, 0, Math.PI * 2);
       ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
@@ -211,11 +238,9 @@ export default function GameCanvas({ loadout, onBack }) {
 
     async function init() {
       const { HandLandmarker, FaceLandmarker, FilesetResolver } = await import('@mediapipe/tasks-vision');
-
       setStatus('Loading models...');
 
       const wasmUrl = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm';
-
       const [visionHand, visionFace] = await Promise.all([
         FilesetResolver.forVisionTasks(wasmUrl),
         FilesetResolver.forVisionTasks(wasmUrl),
@@ -244,7 +269,6 @@ export default function GameCanvas({ loadout, onBack }) {
 
       landmarkerRef.current     = handLandmarker;
       faceLandmarkerRef.current = faceLandmarker;
-
       setStatus('Starting camera...');
 
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -257,6 +281,11 @@ export default function GameCanvas({ loadout, onBack }) {
       video.srcObject = stream;
       await new Promise(res => (video.onloadedmetadata = res));
       video.play();
+
+      const zoomCanvas = document.createElement('canvas');
+      zoomCanvas.width  = video.videoWidth;
+      zoomCanvas.height = video.videoHeight;
+      zoomCanvasRef.current = zoomCanvas;
 
       setStatus(null);
 
@@ -275,7 +304,11 @@ export default function GameCanvas({ loadout, onBack }) {
 
         const { videoWidth: w, videoHeight: h } = video;
 
-        const handResult = handLandmarker.detectForVideo(video, performance.now());
+        const zc = zoomCanvasRef.current;
+        const zctx = zc.getContext('2d');
+        zctx.drawImage(video, w * ZOOM_OFFSET, h * ZOOM_OFFSET, w * ZOOM_SCALE, h * ZOOM_SCALE, 0, 0, w, h);
+
+        const handResult = handLandmarker.detectForVideo(zc, performance.now());
 
         frameCountRef.current++;
         if (hasFaceGestureRef.current && frameCountRef.current % 2 === 1 && faceLandmarkerRef.current) {
@@ -289,7 +322,6 @@ export default function GameCanvas({ loadout, onBack }) {
           }
         }
         const faceLandmarks = cachedFaceLandmarksRef.current;
-
         const hands = handResult.landmarks ?? [];
 
         // Warmup: wait for 3 consecutive frames with hands before starting turns
@@ -317,36 +349,25 @@ export default function GameCanvas({ loadout, onBack }) {
         }
 
         let detected = null;
-
-        // Phase 1 — two-hand (must run before single-hand to avoid false positives)
         if (!detected && hands.length >= 2) {
           for (const key of loadout) {
             const ab = ABILITIES[key];
-            if (ab.gestureType === 'two-hand' && ab.detect(hands, faceLandmarks)) {
-              detected = key; break;
-            }
+            if (ab.gestureType === 'two-hand' && ab.detect(hands, faceLandmarks)) { detected = key; break; }
           }
         }
-        // Phase 2 — single-hand
         if (!detected && hands.length > 0) {
           for (const key of loadout) {
             const ab = ABILITIES[key];
-            if (ab.gestureType === 'single' && ab.detect(hands, faceLandmarks)) {
-              detected = key; break;
-            }
+            if (ab.gestureType === 'single' && ab.detect(hands, faceLandmarks)) { detected = key; break; }
           }
         }
-        // Phase 3 — face-only
         if (!detected) {
           for (const key of loadout) {
             const ab = ABILITIES[key];
-            if (ab.gestureType === 'face' && ab.detect(hands, faceLandmarks)) {
-              detected = key; break;
-            }
+            if (ab.gestureType === 'face' && ab.detect(hands, faceLandmarks)) { detected = key; break; }
           }
         }
 
-        // Thumbs down cancels the confirmed move
         if (hands.length > 0 &&
             detectThumbsDown(hands[0]) &&
             gamePhaseRef.current === 'selecting' &&
@@ -358,13 +379,11 @@ export default function GameCanvas({ loadout, onBack }) {
         }
 
         const gesture = detected && loadout.has(detected) ? detected : null;
-
         if (gesture !== currentGestureRef.current) {
           currentGestureRef.current = gesture;
           setCurrentGesture(gesture);
         }
 
-        // Gesture hold debounce — only update lock-in during selecting phase
         const hold = gestureHoldRef.current;
         if (gesture === hold.gesture) {
           if (gesture && Date.now() - hold.since >= HOLD_THRESHOLD_MS) {
@@ -386,7 +405,7 @@ export default function GameCanvas({ loadout, onBack }) {
     }
 
     init().catch(err => {
-      console.error('GameCanvas init error:', err);
+      console.error('BotCanvas init error:', err);
       setStatus(`Error: ${err.message}`);
     });
 
@@ -402,10 +421,8 @@ export default function GameCanvas({ loadout, onBack }) {
   }, [loadout]);
 
   // ── Render ────────────────────────────────────────────────────────────────
-
-
   return (
-    <div className="game-root">
+    <div className="battle-root">
       {status && <div className="status-overlay">{status}</div>}
       {gamePhase === 'warmup' && !status && (
         <div className="warmup-overlay">
@@ -413,53 +430,50 @@ export default function GameCanvas({ loadout, onBack }) {
         </div>
       )}
 
-      <video
-        ref={videoRef}
-        className={showLandmarks ? 'game-video' : 'game-video game-video--visible'}
-        playsInline
-        muted
-      />
-      <canvas ref={canvasRef} className="game-canvas" style={showLandmarks ? {} : { display: 'none' }} />
+      {/* ── Left pane — player ── */}
+      <div className="battle-pane battle-pane--player">
+        <video
+          ref={videoRef}
+          className={showLandmarks ? 'game-video' : 'game-video game-video--visible'}
+          playsInline
+          muted
+        />
+        <canvas ref={canvasRef} className="game-canvas" style={showLandmarks ? {} : { display: 'none' }} />
 
-      <DomainLayer activeDomain={playerState.activeDomain} />
+        <DomainLayer activeDomain={playerState.activeDomain} />
+        {activeEffect && (() => { const E = activeEffect; return <E />; })()}
+        {gamePhase === 'selecting' && playerState.multiTurnActive && (() => {
+          const L = ABILITIES[playerState.multiTurnActive.abilityKey]?.LoopEffect;
+          return L ? <L /> : null;
+        })()}
+        {gamePhase === 'selecting' && playerState.activeDomain && (() => {
+          const L = ABILITIES[playerState.activeDomain.abilityKey]?.LoopEffect;
+          return L ? <L /> : null;
+        })()}
 
-      {activeEffect && (() => { const E = activeEffect; return <E />; })()}
-      {gamePhase === 'selecting' && playerState.multiTurnActive && (() => {
-        const L = ABILITIES[playerState.multiTurnActive.abilityKey]?.LoopEffect;
-        return L ? <L /> : null;
-      })()}
-      {gamePhase === 'selecting' && playerState.activeDomain && (() => {
-        const L = ABILITIES[playerState.activeDomain.abilityKey]?.LoopEffect;
-        return L ? <L /> : null;
-      })()}
+        <StatsHUD state={playerState} />
+        <AbilityDisplay gesture={currentGesture} loadout={loadout} />
+        <LoadoutHUD loadout={loadout} />
 
-      <button className="back-button" onClick={onBack}>← Loadout</button>
+        {/* Landmark toggle */}
+        <button className="landmark-toggle-btn" onClick={() => setShowLandmarks(v => !v)}>
+          {showLandmarks ? '📷 Camera' : '✋ Landmarks'}
+        </button>
 
-      {/* Debug panel — top right */}
-      <div className="debug-panel">
-        <span className="debug-label">DEBUG</span>
-        <button className="debug-btn" onClick={() => {
-          const s = { ...playerStateRef.current, mana: playerStateRef.current.maxMana };
-          playerStateRef.current = s;
-          setPlayerState(s);
-        }}>Fill Mana</button>
-        <button className="debug-btn" onClick={() => {
-          const s = { ...playerStateRef.current, ultBar: playerStateRef.current.maxUlt };
-          playerStateRef.current = s;
-          setPlayerState(s);
-        }}>Fill Ult</button>
       </div>
 
-      {/* Landmark toggle — bottom left */}
-      <button
-        className="landmark-toggle-btn"
-        onClick={() => setShowLandmarks(v => !v)}
-      >
-        {showLandmarks ? '📷 Camera' : '✋ Landmarks'}
-      </button>
+      {/* ── Right pane — bot ── */}
+      <div className="battle-pane battle-pane--opponent">
+        <div className="opponent-avatar">
+          <span className="opponent-avatar-icon">🤖</span>
+          <span className="opponent-avatar-label">BOT</span>
+        </div>
+        <StatsHUD state={botState} />
+        <LoadoutHUD loadout={BOT_LOADOUT} />
+      </div>
 
-      {/* Turn timer bar */}
-      <div className="turn-timer">
+      {/* ── Shared turn timer — centered over both panes ── */}
+      <div className="battle-timer">
         <div className="turn-timer-label">
           {gamePhase === 'selecting'
             ? (playerState.multiTurnActive
@@ -470,29 +484,27 @@ export default function GameCanvas({ loadout, onBack }) {
             : (resolveMessage ?? ABILITIES[lockedGesture]?.name?.toUpperCase() ?? 'NO MOVE')}
         </div>
         <div className="turn-timer-track">
-          {gamePhase === 'selecting' && (
-            <div key={turnKey} className="turn-timer-fill" />
-          )}
+          {gamePhase === 'selecting' && <div key={turnKey} className="turn-timer-fill" />}
         </div>
-
-        {/* Only show cancel once a move has been confirmed */}
         {gamePhase === 'selecting' && confirmedGesture && !playerState.multiTurnActive && (
-          <button
-            className="cancel-move-btn"
-            onClick={() => {
-              lastGestureRef.current      = null;
-              confirmedGestureRef.current = null;
-              setConfirmedGesture(null);
-            }}
-          >
-            ✕ Cancel move
-          </button>
+          <button className="cancel-move-btn" onClick={() => {
+            lastGestureRef.current      = null;
+            confirmedGestureRef.current = null;
+            setConfirmedGesture(null);
+          }}>✕ Cancel move</button>
         )}
       </div>
 
-      <StatsHUD state={playerState} />
-      <AbilityDisplay gesture={currentGesture} loadout={loadout} />
-      <LoadoutHUD loadout={loadout} />
+      {/* ── Back button ── */}
+      <button className="back-button" onClick={onBack}>← Loadout</button>
+
+      {/* ── Game over overlay ── */}
+      {gameOver && (
+        <div className="gameover-overlay">
+          <span className={`gameover-text ${gameOver === 'win' ? 'gameover-text--win' : 'gameover-text--loss'}`}>{gameOver === 'win' ? 'VICTORY' : 'DEFEAT'}</span>
+          <button className="gameover-btn" onClick={onBack}>← Back to Menu</button>
+        </div>
+      )}
     </div>
   );
 }

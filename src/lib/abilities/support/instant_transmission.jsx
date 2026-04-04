@@ -22,7 +22,7 @@ import { dist, isFingerExtended, isFingerCurled } from '@/lib/gestures';
 
 export default {
   name: 'Instant Transmission', category: 'support', color: '#ffd966',
-  manaCost: 10, ultCost: 0, ultGain: 0,
+  manaCost: 10, ultCost: 0, ultGain: 0, priority: 1,
   gesture: 'Index + middle pressed together, touch forehead',
   gestureType: 'single',
   needsFace: true,

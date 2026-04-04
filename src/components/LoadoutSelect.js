@@ -11,7 +11,7 @@ const CATEGORY_CONFIG = {
   innate:   { label: 'Innate',        max: 1, color: '#ff8833' },
 };
 
-export default function LoadoutSelect({ onStart }) {
+export default function LoadoutSelect({ onStart, onBack }) {
   const [slots, setSlots] = useState([]);
 
   function toggle(key) {
@@ -72,6 +72,9 @@ export default function LoadoutSelect({ onStart }) {
         Enter the Arena
       </button>
       <p className="loadout-hint">Thumbs down to cancel move!</p>
+      {onBack && (
+        <button className="loadout-back" onClick={onBack}>← Back</button>
+      )}
     </div>
   );
 }

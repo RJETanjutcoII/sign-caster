@@ -111,7 +111,7 @@ export default {
     if (!lm0 || !lm1) return false;
     return isPressedShape(lm0) && isPressedShape(lm1) && dist(lm0[0], lm1[0]) < 0.7;
   },
-  domainTick() { return {}; },
+  domainTick() { return { damageOpponent: 10 }; },
   Effect,
   LoopEffect,
   resolve() { return {}; },

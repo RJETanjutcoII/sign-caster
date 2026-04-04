@@ -82,7 +82,7 @@ export default {
       isFingerCurled(lm,   20)
     );
   },
-  domainTick() { return {}; },
+  domainTick() { return { stunOpponent: 1 }; },
   Effect,
   LoopEffect,
   resolve() { return {}; },

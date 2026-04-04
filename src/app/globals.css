@@ -13,6 +13,17 @@ html, body {
   overflow: hidden;
 }
 
+html:has(.loadout-screen),
+body:has(.loadout-screen) {
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+html:has(.loadout-screen)::-webkit-scrollbar,
+body:has(.loadout-screen)::-webkit-scrollbar {
+  display: none;
+}
+
 /* ── Loadout selection screen ───────────────────────────── */
 
 .loadout-screen {
@@ -195,7 +206,7 @@ html, body {
 }
 
 .debug-label {
-  font-size: 0.6rem;
+  font-size: 2.5rem;
   letter-spacing: 0.12em;
   color: rgba(255, 100, 100, 0.6);
   margin-right: 0.2rem;
@@ -208,7 +219,7 @@ html, body {
   padding: 0.25rem 0.6rem;
   color: rgba(255, 180, 180, 0.85);
   font-family: monospace;
-  font-size: 0.7rem;
+  font-size: 2.5rem;
   cursor: pointer;
   transition: background 0.12s, border-color 0.12s;
 }
@@ -231,7 +242,7 @@ html, body {
   padding: 0.4rem 0.9rem;
   color: rgba(255, 255, 255, 0.6);
   font-family: monospace;
-  font-size: 0.75rem;
+  font-size: 2.5rem;
   cursor: pointer;
   transition: color 0.15s, border-color 0.15s;
   backdrop-filter: blur(6px);
@@ -521,14 +532,14 @@ html, body {
 }
 
 .loadout-hud-name {
-  font-size: 1.4rem;
+  font-size: 1.7rem;
   font-weight: bold;
   color: var(--ability-color);
   letter-spacing: 0.04em;
 }
 
 .loadout-hud-hint {
-  font-size: 1rem;
+  font-size: 1.2rem;
   color: rgba(255, 255, 255, 0.4);
   letter-spacing: 0.02em;
 }
@@ -979,4 +990,306 @@ html, body {
   20%  { color: rgba(180, 220, 255, 0.9);  text-shadow: 0 0 25px rgba(100, 180, 255, 0.6),  0 0 70px rgba(60, 120, 255, 0.3); }
   70%  { color: rgba(180, 220, 255, 0.9);  text-shadow: 0 0 25px rgba(100, 180, 255, 0.6),  0 0 70px rgba(60, 120, 255, 0.3); }
   100% { color: rgba(180, 220, 255, 0);    text-shadow: 0 0 20px rgba(100, 180, 255, 0),    0 0 60px rgba(60, 120, 255, 0); }
+}
+
+/* ── Mode select screen ─────────────────────────────────── */
+
+.mode-select {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+  padding: 2rem;
+}
+
+.mode-title {
+  font-size: clamp(2rem, 6vw, 4rem);
+  letter-spacing: 0.2em;
+  color: #fff;
+  margin: 0;
+}
+
+.mode-subtitle {
+  font-size: 1rem;
+  color: rgba(255, 255, 255, 0.4);
+  letter-spacing: 0.1em;
+  margin: 0;
+}
+
+.mode-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  width: 100%;
+  max-width: 420px;
+}
+
+.mode-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.3rem;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  padding: 1.1rem 1.6rem;
+  color: #fff;
+  font-family: monospace;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  text-align: left;
+  width: 100%;
+}
+
+.mode-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.45);
+}
+
+.mode-btn--battle {
+  border-color: rgba(255, 200, 60, 0.3);
+}
+
+.mode-btn--battle:hover {
+  border-color: rgba(255, 200, 60, 0.7);
+  background: rgba(255, 200, 60, 0.06);
+}
+
+.mode-btn-name {
+  font-size: 1.15rem;
+  font-weight: bold;
+  letter-spacing: 0.08em;
+}
+
+.mode-btn-desc {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.45);
+  letter-spacing: 0.04em;
+}
+
+/* ── Loadout back button ────────────────────────────────── */
+
+.loadout-back {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  padding: 0.4rem 0.9rem;
+  color: rgba(255, 255, 255, 0.45);
+  font-family: monospace;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  margin-top: 0.5rem;
+}
+
+.loadout-back:hover {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+/* ── Battle layout ──────────────────────────────────────── */
+
+.battle-root {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  overflow: hidden;
+}
+
+.battle-pane {
+  position: relative;
+  width: 50%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.battle-pane--player {
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.battle-pane--opponent {
+  background: rgba(0, 0, 0, 0.85);
+}
+
+/* ── Opponent placeholder ───────────────────────────────── */
+
+.opponent-avatar {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.opponent-avatar-icon {
+  font-size: 8rem;
+  line-height: 1;
+  filter: drop-shadow(0 0 30px rgba(255, 200, 60, 0.35));
+}
+
+.opponent-avatar-label {
+  font-size: 1.4rem;
+  letter-spacing: 0.25em;
+  color: rgba(255, 255, 255, 0.35);
+  font-family: monospace;
+}
+
+/* ── Battle timer ───────────────────────────────────────── */
+
+.battle-timer {
+  position: absolute;
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 0.3rem 1rem;
+  font-family: monospace;
+  font-size: 1.2rem;
+  letter-spacing: 0.1em;
+  color: #fff;
+  backdrop-filter: blur(4px);
+}
+
+.battle-timer--warning {
+  color: #ff6644;
+  border-color: rgba(255, 80, 60, 0.4);
+}
+
+/* ── Game over overlay ──────────────────────────────────── */
+
+.gameover-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(6px);
+}
+
+.gameover-text {
+  font-size: 5rem;
+  font-family: monospace;
+  letter-spacing: 0.2em;
+  font-weight: bold;
+}
+
+.gameover-text--win {
+  color: #ffcc44;
+  text-shadow: 0 0 40px rgba(255, 200, 60, 0.5);
+}
+
+.gameover-text--loss {
+  color: #ff4444;
+  text-shadow: 0 0 40px rgba(255, 60, 60, 0.5);
+}
+
+.gameover-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 8px;
+  padding: 0.75rem 2.5rem;
+  color: #fff;
+  font-family: monospace;
+  font-size: 1rem;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.gameover-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+/* ── Camera check screen ────────────────────────────────── */
+
+.camera-check {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  padding: 2rem;
+}
+
+.camera-check-title {
+  font-size: clamp(1.5rem, 4vw, 2.5rem);
+  letter-spacing: 0.15em;
+  color: #fff;
+  margin: 0;
+}
+
+.camera-check-preview {
+  width: 360px;
+  max-width: 90vw;
+  aspect-ratio: 4 / 3;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  object-fit: cover;
+  transform: scaleX(-1);
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.camera-check-msg {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.5);
+  font-family: monospace;
+  letter-spacing: 0.06em;
+  margin: 0;
+  text-align: center;
+  line-height: 1.6;
+}
+
+.camera-check-msg--ok  { color: #44dd77; }
+.camera-check-msg--err { color: #ff5555; }
+
+/* ── Warmup overlay ─────────────────────────────────────── */
+
+.warmup-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+}
+
+.warmup-text {
+  font-size: 1.4rem;
+  font-family: monospace;
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.8);
+  animation: warmup-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes warmup-pulse {
+  0%, 100% { opacity: 0.4; }
+  50%       { opacity: 1;   }
+}
+
+/* ── Multiplayer button overrides ───────────────────────── */
+
+.battle-pane .landmark-toggle-btn {
+  font-size: 1rem;
+  padding: 0.25rem 0.6rem;
+}
+
+.battle-pane .cancel-move-btn {
+  font-size: 0.7rem;
+  padding: 0.15rem 0.5rem;
 }

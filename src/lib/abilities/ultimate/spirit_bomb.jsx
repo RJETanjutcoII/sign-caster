@@ -112,7 +112,7 @@ export default {
   name: 'Spirit Bomb', category: 'ultimate', color: '#ffffaa',
   manaCost: 0, ultCost: 5, ultGain: 0,
   turnType: 'multi', turnAmount: 2,
-  gesture: 'Both open palms spread wide',
+  gesture: 'Both open palms, arms spread wide',
   gestureType: 'two-hand',
   detect(hands) {
     const [lm0, lm1] = hands;

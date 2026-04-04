@@ -1,7 +1,7 @@
 import fist               from './basic/fist.jsx';
 import finger_gun         from './basic/finger_gun.jsx';
 
-import point              from './special/point.jsx';
+import death_ball         from './special/death_ball.jsx';
 import kamehameha         from './special/kamehameha.jsx';
 
 import spirit_bomb        from './ultimate/spirit_bomb.jsx';
@@ -18,7 +18,7 @@ import sacred_ground      from './ultimate/sacred_ground.jsx';
 export const ABILITIES = {
   fist,
   finger_gun,
-  point,
+  death_ball,
   kamehameha,
   spirit_bomb,
   unlimited_void,

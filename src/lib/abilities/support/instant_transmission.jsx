@@ -23,8 +23,9 @@ import { dist, isFingerExtended, isFingerCurled } from '@/lib/gestures';
 export default {
   name: 'Instant Transmission', category: 'support', color: '#ffd966',
   manaCost: 10, ultCost: 0, ultGain: 0,
-  gesture: 'Two fingers to forehead',
+  gesture: 'Index + middle pressed together, touch forehead',
   gestureType: 'single',
+  needsFace: true,
   detect(hands, face) {
     const lm = hands[0];
     if (!lm) return false;
@@ -36,9 +37,9 @@ export default {
     const handWidth = Math.abs(lm[5].x - lm[17].x);
     const fingerGap = Math.abs(lm[8].x  - lm[12].x);
     if (handWidth > 0 && fingerGap / handWidth >= 0.4) return false; // V sign
-    if (!face || face.length <= 9) return false;
-    const tipToFace = Math.min(dist(lm[8], face[9]), dist(lm[12], face[9]));
-    return tipToFace < 0.15;
+    if (!face || face.length <= 10) return false;
+    const tipToFace = Math.min(dist(lm[8], face[10]), dist(lm[12], face[10]));
+    return tipToFace < 0.30;
   },
   Effect,
   resolve() { return { nullifySelf: true }; },

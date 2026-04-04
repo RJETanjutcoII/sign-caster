@@ -4,11 +4,11 @@ import { useState } from 'react';
 import { ABILITIES } from '@/lib/abilities';
 
 const CATEGORY_CONFIG = {
-  basic:             { label: 'Basic Attacks',      max: 3 },
-  special:           { label: 'Special',            max: 1 },
-  ultimate:          { label: 'Ultimate',           max: 1 },
-  support:           { label: 'Support',            max: 1 },
-  innate:            { label: 'Innate',             max: 1 },
+  basic:    { label: 'Basic Attacks', max: 3, color: '#44dd77' },
+  special:  { label: 'Special',       max: 1, color: '#44aaff' },
+  ultimate: { label: 'Ultimate',      max: 1, color: '#ffcc44' },
+  support:  { label: 'Support',       max: 1, color: '#2255cc' },
+  innate:   { label: 'Innate',        max: 1, color: '#ff8833' },
 };
 
 export default function LoadoutSelect({ onStart }) {
@@ -50,7 +50,7 @@ export default function LoadoutSelect({ onStart }) {
                   <button
                     key={key}
                     className={`loadout-card ${active ? 'loadout-card--active' : ''} ${maxed ? 'loadout-card--disabled' : ''}`}
-                    style={{ '--ability-color': ability.color }}
+                    style={{ '--ability-color': ability.color, '--category-color': config.color }}
                     onClick={() => toggle(key)}
                     disabled={maxed}
                   >
@@ -71,6 +71,7 @@ export default function LoadoutSelect({ onStart }) {
       >
         Enter the Arena
       </button>
+      <p className="loadout-hint">Thumbs down to cancel move!</p>
     </div>
   );
 }

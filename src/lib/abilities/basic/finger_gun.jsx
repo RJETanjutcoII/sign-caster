@@ -21,7 +21,7 @@ import { isFingerExtended, isFingerCurled } from '@/lib/gestures';
 export default {
   name: 'Shot', category: 'basic', color: '#ff8844',
   manaCost: 0, ultCost: 0, ultGain: 1,
-  gesture: 'Finger gun (index + thumb up)',
+  gesture: 'Index out, thumb up, other fingers curled',
   gestureType: 'single',
   detect(hands) {
     const lm = hands[0];

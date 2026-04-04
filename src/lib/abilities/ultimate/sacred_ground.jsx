@@ -64,7 +64,7 @@ export const LoopEffect = () => (
 export default {
   name: 'Sacred Ground', category: 'ultimate', color: '#ffcc44',
   manaCost: 0, ultCost: 5, ultGain: 0,
-  gesture: 'Open palm up (one hand)',
+  gesture: 'Open hand, palm facing camera',
   gestureType: 'single',
   turnType: 'domain',
   turnAmount: 3,

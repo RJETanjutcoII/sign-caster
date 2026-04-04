@@ -102,7 +102,7 @@ function isPressedShape(lm) {
 export default {
   name: 'Malevolent Shrine', category: 'ultimate', color: '#ff3333',
   manaCost: 0, ultCost: 5, ultGain: 0,
-  gesture: 'Middle + ring up, index + pinky curled (both hands)',
+  gesture: 'Middle + ring fingers up, index + pinky down — both hands',
   gestureType: 'two-hand',
   turnType: 'domain',
   turnAmount: 3,

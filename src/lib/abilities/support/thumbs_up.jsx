@@ -22,7 +22,7 @@ import { dist } from '@/lib/gestures';
 export default {
   name: 'Heal', category: 'support', color: '#ff6699',
   manaCost: 5, ultCost: 0, ultGain: 0,
-  gesture: 'Thumbs up',
+  gesture: 'Fist with thumb raised up',
   gestureType: 'single',
   detect(hands) {
     const lm = hands[0];

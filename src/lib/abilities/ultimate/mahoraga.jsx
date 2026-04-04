@@ -54,7 +54,7 @@ function isFist(lm) {
 export default {
   name: 'Summon Mahoraga', category: 'ultimate', color: '#a0c8ff',
   manaCost: 0, ultCost: 5, ultGain: 0,
-  gesture: 'Both fists raised together',
+  gesture: 'Both closed fists held close together',
   gestureType: 'two-hand',
   detect(hands) {
     const [lm0, lm1] = hands;

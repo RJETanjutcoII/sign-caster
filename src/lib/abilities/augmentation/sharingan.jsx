@@ -38,7 +38,7 @@ import { dist } from '@/lib/gestures';
 export default {
   name: 'Sharingan', category: 'innate', color: '#ff2222',
   manaCost: 15, ultCost: 0, ultGain: 0,
-  gesture: 'Wink',
+  gesture: 'Wink (close one eye, keep the other wide open)',
   gestureType: 'face',
   detect(hands, face) {
     if (!face || face.length < 478) return false;

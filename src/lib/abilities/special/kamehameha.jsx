@@ -43,7 +43,7 @@ function isOpenPalm(lm) {
 export default {
   name: 'Kamehameha', category: 'special', color: '#44aaff',
   manaCost: 5, ultCost: 0, ultGain: 2,
-  gesture: 'Both hands open, wrists together',
+  gesture: 'Both open palms, wrists pressed together',
   gestureType: 'two-hand',
   detect(hands) {
     const [lm0, lm1] = hands;

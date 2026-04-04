@@ -78,15 +78,15 @@ html, body {
 }
 
 .loadout-card-name {
-  font-size: 1rem;
+  font-size: 1.15rem;
   font-weight: bold;
-  color: var(--ability-color);
+  color: var(--category-color);
   letter-spacing: 0.05em;
 }
 
 .loadout-card-gesture {
-  font-size: 0.72rem;
-  color: rgba(255, 255, 255, 0.45);
+  font-size: 0.88rem;
+  color: var(--ability-color);
 }
 
 .loadout-category {
@@ -138,6 +138,13 @@ html, body {
 .loadout-start:disabled {
   opacity: 0.3;
   cursor: not-allowed;
+}
+
+.loadout-hint {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.35);
+  margin: 0;
+  font-family: monospace;
 }
 
 /* ── Game layout ────────────────────────────────────────── */

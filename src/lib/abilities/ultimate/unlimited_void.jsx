@@ -68,7 +68,7 @@ import { isFingerExtended, isFingerHalfBent, isFingerCurled } from '@/lib/gestur
 export default {
   name: 'Unlimited Void', category: 'ultimate', color: '#c8a8ff',
   manaCost: 0, ultCost: 5, ultGain: 0,
-  gesture: 'Index up, middle half-bent',
+  gesture: 'Index finger up, middle finger slightly curled',
   gestureType: 'single',
   turnType: 'domain',
   turnAmount: 3,

@@ -21,7 +21,7 @@ import { dist } from '@/lib/gestures';
 export default {
   name: 'Strike', category: 'basic', color: '#ff4444',
   manaCost: 0, ultCost: 0, ultGain: 1,
-  gesture: 'Fist',
+  gesture: 'Closed fist',
   gestureType: 'single',
   detect(hands) {
     const lm = hands[0];

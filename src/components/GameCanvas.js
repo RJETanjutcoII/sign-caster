@@ -63,7 +63,7 @@ export default function GameCanvas({ loadout, onBack }) {
   useEffect(() => { showLandmarksRef.current = showLandmarks; }, [showLandmarks]);
 
   const hasFaceGesture = useMemo(
-    () => [...loadout].some(key => ABILITIES[key]?.gestureType === 'face'),
+    () => [...loadout].some(key => ABILITIES[key]?.gestureType === 'face' || ABILITIES[key]?.needsFace),
     [loadout]
   );
   const hasFaceGestureRef = useRef(hasFaceGesture);

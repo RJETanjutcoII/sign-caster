@@ -55,11 +55,13 @@ export default {
     if (!lm) return false;
     const handSize = dist(lm[0], lm[9]);
     if (handSize < 0.01) return false;
-    const indexExtended = isFingerExtended(lm, 8);
-    const pinkyExtended = isFingerExtended(lm, 20);
+    // Spider-Man pose: index and pinky point outward (not straight up), so use
+    // looser 1.5× threshold rather than isFingerExtended's strict 1.7×
+    const indexExtended = dist(lm[8],  lm[0]) > handSize * 1.5;
+    const pinkyExtended = dist(lm[20], lm[0]) > handSize * 1.4;
     const middleCurled  = isFingerCurled(lm, 12);
     const ringCurled    = isFingerCurled(lm, 16);
-    const thumbOut      = dist(lm[4], lm[0]) > handSize * 1.4;
+    const thumbOut      = dist(lm[4],  lm[0]) > handSize * 1.2;
     return indexExtended && pinkyExtended && middleCurled && ringCurled && thumbOut;
   },
   Effect,

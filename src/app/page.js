@@ -6,7 +6,7 @@ import ModeSelect from '@/components/ModeSelect';
 import CameraCheck from '@/components/CameraCheck';
 import LoadoutSelect from '@/components/LoadoutSelect';
 
-const GameCanvas = dynamic(() => import('@/components/GameCanvas'), {
+const TrainingCanvas = dynamic(() => import('@/components/TrainingCanvas'), {
   ssr: false,
   loading: () => <div className="status-overlay">Loading game...</div>,
 });
@@ -34,7 +34,7 @@ export default function Home() {
   }
 
   if (mode === 'training') {
-    return <GameCanvas loadout={loadout} onBack={() => setLoadout(null)} />;
+    return <TrainingCanvas loadout={loadout} onBack={() => setLoadout(null)} />;
   }
 
   return <BotCanvas loadout={loadout} onBack={() => setLoadout(null)} />;

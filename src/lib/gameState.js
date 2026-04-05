@@ -10,6 +10,7 @@ export const INITIAL_STATE = {
   multiTurnActive: null,   // { abilityKey, turnsLeft } when a multi-turn move is charging
   activeDomain: null,      // { abilityKey, turnsLeft } when a domain is active
   nullified: false,        // incoming attacks negated this turn (IT)
+  speedMod: 0,             // net speed modifier: positive = faster, negative = slower
 };
 
 /**
@@ -72,7 +73,7 @@ export function applyStartOfTurn(state) {
  */
 export function resolveTurn(state, gesture) {
   let s = { ...state };
-  const outgoing = { damage: 0, stunTurns: 0, noRestBonus: false, dot: null };
+  const outgoing = { damage: 0, stunTurns: 0, noRestBonus: false, dot: null, undodgeable: false };
   let message = null;
 
   // Stunned — skip turn entirely
@@ -99,6 +100,13 @@ export function resolveTurn(state, gesture) {
     s.ultBar -= (ability.ultCost  || 0);
     s.ultBar  = Math.min(s.maxUlt, s.ultBar + (ability.ultGain || 0));
     s.activeDomain = { abilityKey: gesture, turnsLeft: ability.turnAmount };
+    outgoing.undodgeable = ability.undodgeable ?? false;
+    if (ability.resolve) {
+      const result = ability.resolve({ caster: s });
+      outgoing.damage    = result.damage    ?? 0;
+      outgoing.stunTurns = result.stunTurns ?? 0;
+      outgoing.dot       = result.dot       ?? null;
+    }
     return { newState: s, outgoing, effectKey: 'domain_start', message: `${ability.name} activated!` };
   }
 
@@ -146,10 +154,12 @@ export function resolveTurn(state, gesture) {
   const result = ability.resolve({ caster: s });
   if (result.healSelf)    s.hp = Math.min(s.maxHp, s.hp + result.healSelf);
   if (result.nullifySelf) s.nullified = true;
+  if (result.speedBoost)  s.speedMod = (s.speedMod || 0) + result.speedBoost;
   outgoing.damage      = result.damage      ?? 0;
   outgoing.stunTurns   = result.stunTurns   ?? 0;
   outgoing.noRestBonus = result.noRestBonus ?? false;
   outgoing.dot         = result.dot         ?? null;
+  outgoing.undodgeable = ability.undodgeable ?? false;
 
   return { newState: s, outgoing, message: result.message ?? message };
 }
@@ -164,8 +174,8 @@ export function resolveTurn(state, gesture) {
  */
 export function applyIncoming(state, outgoing) {
   if (!outgoing) return state;
-  // Nullify check: if player used IT this turn, skip all incoming
-  if (state.nullified) return state;
+  // Nullify check: if player used IT this turn, skip all incoming (unless undodgeable)
+  if (state.nullified && !outgoing.undodgeable) return state;
 
   let s = { ...state };
   s.hp = Math.max(0, s.hp - (outgoing.damage || 0));
@@ -174,6 +184,9 @@ export function applyIncoming(state, outgoing) {
   }
   if (outgoing.dot) {
     s.dot = outgoing.dot;
+  }
+  if (outgoing.speedReduction) {
+    s.speedMod = (s.speedMod || 0) - outgoing.speedReduction;
   }
   return s;
 }
@@ -197,8 +210,9 @@ export function resolveOrderedTurns(
   playerState, playerGesture, playerSpeed,
   botState,    botGesture,    botSpeed
 ) {
-  const playerPriority = ABILITIES[playerGesture]?.priority ?? 0;
-  const botPriority    = ABILITIES[botGesture]?.priority    ?? 0;
+  // Stunned movers always go last (priority -1)
+  const playerPriority = playerGesture === 'stunned' ? -1 : (ABILITIES[playerGesture]?.priority ?? 0);
+  const botPriority    = botGesture    === 'stunned' ? -1 : (ABILITIES[botGesture]?.priority    ?? 0);
 
   let playerGoesFirst;
   if      (playerPriority !== botPriority) playerGoesFirst = playerPriority > botPriority;
@@ -206,38 +220,92 @@ export function resolveOrderedTurns(
   else                                     playerGoesFirst = Math.random() < 0.5;
 
   // Both resolve independently (costs paid, self-effects applied)
-  const { newState: playerResolved, outgoing: playerOut, effectKey, message } =
+  const { newState: playerResolved, outgoing: playerOut, effectKey: pEK, message: pMsg } =
     resolveTurn(playerState, playerGesture);
-  const { newState: botResolved, outgoing: botOut } =
+  const { newState: botResolved, outgoing: botOut, effectKey: bEK, message: bMsg } =
     resolveTurn(botState, botGesture);
 
-  // Apply first mover's outgoing, then check if second mover is suppressed
-  function applyOrdered(first, firstOut, second, secondOut) {
-    const secondHit = applyIncoming(second, firstOut);
-    const secondDead    = secondHit.hp <= 0;
-    const secondStunned = (firstOut.stunTurns ?? 0) > 0 && !second.nullified;
-    const suppressed    = secondDead || secondStunned;
+  // Map to first / second mover
+  const [firstResolved, firstOut, firstEK, firstMsg, fGesture,
+         secondResolved, secondOut, secondEK, secondMsg, sGesture] =
+    playerGoesFirst
+      ? [playerResolved, playerOut, pEK, pMsg, playerGesture,
+         botResolved,    botOut,    bEK, bMsg, botGesture]
+      : [botResolved,    botOut,    bEK, bMsg, botGesture,
+         playerResolved, playerOut, pEK, pMsg, playerGesture];
 
-    // If stunned this turn, consume one stun turn so they aren't double-penalised
-    let secondFinal = secondHit;
-    if (secondStunned && secondFinal.stunTurnsRemaining > 0) {
-      secondFinal = { ...secondFinal, stunTurnsRemaining: secondFinal.stunTurnsRemaining - 1 };
-    }
+  // Original (pre-resolution) state of the second mover
+  const secondOrigState = playerGoesFirst ? botState : playerState;
 
-    const firstFinal = applyIncoming(first, suppressed ? EMPTY_OUTGOING : secondOut);
-    return { firstFinal, secondFinal };
+  // Apply first mover's outgoing to second mover
+  const secondHit     = applyIncoming(secondResolved, firstOut);
+  const secondDead    = secondHit.hp <= 0;
+  const secondStunned = (firstOut.stunTurns ?? 0) > 0 && !secondResolved.nullified;
+  const suppressed    = secondDead || secondStunned;
+
+  // If stunned: discard the second mover's resolution entirely (refund costs) and
+  // apply the hit to their original state instead. No mana/ult spent for a cancelled move.
+  let secondFinal = secondStunned
+    ? applyIncoming(secondOrigState, firstOut)
+    : secondHit;
+
+  // Consume one stun turn to avoid double-penalising on the next SOT
+  if (secondStunned && secondFinal.stunTurnsRemaining > 0) {
+    secondFinal = { ...secondFinal, stunTurnsRemaining: secondFinal.stunTurnsRemaining - 1 };
   }
 
-  let playerFinal, botFinal;
-  if (playerGoesFirst) {
-    const { firstFinal, secondFinal } = applyOrdered(playerResolved, playerOut, botResolved, botOut);
-    playerFinal = firstFinal;
-    botFinal    = secondFinal;
-  } else {
-    const { firstFinal, secondFinal } = applyOrdered(botResolved, botOut, playerResolved, playerOut);
-    botFinal    = firstFinal;
-    playerFinal = secondFinal;
+  // Compensate: second mover activated a domain with immediate outgoing effects
+  // but couldn't benefit this turn (first mover already acted). Add 1 turn.
+  if (
+    !suppressed &&
+    secondFinal.activeDomain?.abilityKey === sGesture &&
+    (secondOut.stunTurns > 0 || secondOut.damage > 0 || secondOut.dot != null)
+  ) {
+    secondFinal = {
+      ...secondFinal,
+      activeDomain: { ...secondFinal.activeDomain, turnsLeft: secondFinal.activeDomain.turnsLeft + 1 },
+    };
   }
 
-  return { playerFinal, botFinal, playerOut, botOut, effectKey, message, playerGoesFirst };
+  // Apply second mover's outgoing to first mover (empty if suppressed)
+  const firstFinal = applyIncoming(firstResolved, suppressed ? EMPTY_OUTGOING : secondOut);
+
+  // Map back to player / bot
+  const [playerFinal, botFinal] = playerGoesFirst
+    ? [firstFinal,  secondFinal]
+    : [secondFinal, firstFinal];
+
+  // Intermediate states for staged display: first mover has acted (resources spent),
+  // second mover has only taken HP damage — their resources are NOT deducted yet
+  // so their mana/ult bars stay intact until their own phase.
+  const secondDisplayHit = applyIncoming(secondOrigState, firstOut);
+  const [playerIntermediate, botIntermediate] = playerGoesFirst
+    ? [firstResolved,    secondDisplayHit]
+    : [secondDisplayHit, firstResolved];
+
+  // Second mover display — override effectKey/message if suppressed
+  const secondEffectKey = suppressed && !secondDead ? 'stunned' : secondEK;
+  const secondMessage   = suppressed && !secondDead ? 'Stunned! Cannot move!' : secondMsg;
+
+  return {
+    playerFinal, botFinal,
+    playerOut, botOut,
+    playerGoesFirst,
+    firstMoverIsPlayer: playerGoesFirst,
+    // Phase 1 (first mover)
+    firstEffectKey: firstEK,
+    firstMessage:   firstMsg,
+    firstGesture:   fGesture,
+    // Phase 2 (second mover)
+    secondEffectKey,
+    secondMessage,
+    secondGesture: sGesture,
+    secondSuppressed: suppressed,
+    // Intermediate states for staged HP display
+    playerIntermediate,
+    botIntermediate,
+    // Legacy compat
+    effectKey: firstEK,
+    message:   firstMsg,
+  };
 }

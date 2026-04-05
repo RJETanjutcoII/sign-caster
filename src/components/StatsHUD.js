@@ -1,14 +1,15 @@
 'use client';
 
-export default function StatsHUD({ state }) {
+export default function StatsHUD({ state, baseSpeed }) {
   if (!state) return null;
 
   const { hp, maxHp, mana, maxMana, ultBar, maxUlt,
-          stunTurnsRemaining, dot, multiTurnActive, activeDomain, nullified } = state;
+          stunTurnsRemaining, dot, multiTurnActive, activeDomain, nullified, speedMod } = state;
 
   const hpPct   = (hp   / maxHp)   * 100;
   const mpPct   = (mana / maxMana) * 100;
   const ultPct  = (ultBar / maxUlt) * 100;
+  const effectiveSpeed = baseSpeed != null ? Math.max(0, baseSpeed + (speedMod || 0)) : null;
 
   const statuses = [];
   if (stunTurnsRemaining > 0) statuses.push(`STUNNED (${stunTurnsRemaining})`);
@@ -42,6 +43,13 @@ export default function StatsHUD({ state }) {
         </div>
         <span className="stats-value">{ultBar}/{maxUlt}</span>
       </div>
+
+      {effectiveSpeed != null && (
+        <div className="stats-row">
+          <span className="stats-label">SPD</span>
+          <span className="stats-value stats-value--spd">{effectiveSpeed}</span>
+        </div>
+      )}
 
       {statuses.length > 0 && (
         <div className="stats-statuses">

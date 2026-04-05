@@ -70,8 +70,9 @@ export default {
   manaCost: 0, ultCost: 5, ultGain: 0,
   gesture: 'Index finger up, middle finger slightly curled',
   gestureType: 'single',
+  undodgeable: true,
   turnType: 'domain',
-  turnAmount: 3,
+  turnAmount: 2,
   detect(hands) {
     const lm = hands[0];
     if (!lm) return false;
@@ -85,5 +86,5 @@ export default {
   domainTick() { return { stunOpponent: 1 }; },
   Effect,
   LoopEffect,
-  resolve() { return {}; },
+  resolve() { return { stunTurns: 1 }; },
 };

@@ -11,6 +11,8 @@ import mahoraga           from './ultimate/mahoraga.jsx';
 
 import instant_transmission from './support/instant_transmission.jsx';
 import thumbs_up          from './support/thumbs_up.jsx';
+import web_shot           from './support/web_shot.jsx';
+import double_v           from './support/double_v.jsx';
 
 import sharingan          from './augmentation/sharingan.jsx';
 import sacred_ground      from './ultimate/sacred_ground.jsx';
@@ -26,6 +28,8 @@ export const ABILITIES = {
   mahoraga,
   instant_transmission,
   thumbs_up,
+  web_shot,
+  double_v,
   sharingan,
   sacred_ground,
 };

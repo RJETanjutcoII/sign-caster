@@ -16,9 +16,9 @@ import { BOT_LOADOUT, chooseBotGesture } from '@/lib/bot';
 
 const HOLD_THRESHOLD_MS  = 300;
 const TURN_DURATION_S    = 5;
-const RESOLVE_DURATION_S = 4;
-const PLAYER_SPEED       = 2;
-const BOT_SPEED          = 1;
+const RESOLVE_SUB_S      = 2;   // duration of each resolve sub-phase
+const PLAYER_SPEED       = 1;
+const BOT_SPEED          = 2;
 
 const ZOOM        = 1.25;
 const ZOOM_OFFSET = (1 - 1 / ZOOM) / 2;
@@ -38,11 +38,10 @@ export default function BotCanvas({ loadout, onBack }) {
   const gestureHoldRef         = useRef({ gesture: null, since: 0 });
 
   // ── Turn state ────────────────────────────────────────────────────────────
-  const [gamePhase,        setGamePhase]        = useState('warmup'); // 'warmup' | 'selecting' | 'resolving'
+  const [gamePhase,        setGamePhase]        = useState('warmup'); // 'warmup'|'selecting'|'resolving_first'|'resolving_second'
   const timeLeftRef = useRef(TURN_DURATION_S);
   const [turnKey,          setTurnKey]          = useState(0);
   const [confirmedGesture, setConfirmedGesture] = useState(null);
-  const [lockedGesture,    setLockedGesture]    = useState(null);
   const [activeEffect,     setActiveEffect]     = useState(null);
   const [resolveMessage,   setResolveMessage]   = useState(null);
   const [currentGesture,   setCurrentGesture]   = useState(null);
@@ -64,6 +63,9 @@ export default function BotCanvas({ loadout, onBack }) {
   const botStateRef        = useRef(INITIAL_STATE);
   const botForcedGestureRef = useRef(null);
   const botLockedGestureRef = useRef(null);
+
+  // ── Staged resolution data ────────────────────────────────────────────────
+  const pendingResolutionRef = useRef(null);
 
   // ── Dev helpers ───────────────────────────────────────────────────────────
   const [showLandmarks, setShowLandmarks] = useState(false);
@@ -93,17 +95,19 @@ export default function BotCanvas({ loadout, onBack }) {
     playerStateRef.current = sotState;
     forcedGestureRef.current = forcedGesture;
 
-    // Start of turn — bot
+    // Apply player's domain outgoing to bot BEFORE bot SOT, so stun is seen immediately
+    if (playerDomainOut.damage > 0 || playerDomainOut.stunTurns > 0) {
+      botStateRef.current = applyIncoming({ ...botStateRef.current, nullified: false }, playerDomainOut);
+    }
+
+    // Start of turn — bot (now sees any stun from player's domain)
     const { newState: botSot, forcedGesture: botForced, domainOutgoing: botDomainOut } = applyStartOfTurn(botStateRef.current);
     botStateRef.current = botSot;
     const botChoice = botForced ?? chooseBotGesture(botSot, BOT_LOADOUT);
     botLockedGestureRef.current = botChoice;
     botForcedGestureRef.current = botForced;
 
-    // Cross-apply domain outgoing (e.g. Unlimited Void stun, Malevolent Shrine damage)
-    if (playerDomainOut.damage > 0 || playerDomainOut.stunTurns > 0) {
-      botStateRef.current = applyIncoming(botStateRef.current, playerDomainOut);
-    }
+    // Apply bot's domain outgoing to player
     if (botDomainOut.damage > 0 || botDomainOut.stunTurns > 0) {
       playerStateRef.current = applyIncoming(playerStateRef.current, botDomainOut);
     }
@@ -127,51 +131,92 @@ export default function BotCanvas({ loadout, onBack }) {
       const botLocked    = botLockedGestureRef.current;
       forcedGestureRef.current = null;
 
-      // Resolve with speed/priority ordering
-      const { playerFinal, botFinal, effectKey, message: resolveMsg } =
-        resolveOrderedTurns(
-          playerStateRef.current, playerLocked, PLAYER_SPEED,
-          botStateRef.current,    botLocked,    BOT_SPEED
-        );
+      // Resolve with speed/priority ordering (speed reduced by accumulated penalties)
+      const playerSpeed = Math.max(0, PLAYER_SPEED + (playerStateRef.current.speedMod || 0));
+      const botSpeed    = Math.max(0, BOT_SPEED    + (botStateRef.current.speedMod    || 0));
+      const result = resolveOrderedTurns(
+        playerStateRef.current, playerLocked, playerSpeed,
+        botStateRef.current,    botLocked,    botSpeed
+      );
+      pendingResolutionRef.current = result;
 
-      playerStateRef.current = playerFinal;
-      botStateRef.current    = botFinal;
-      setPlayerState(playerFinal);
-      setBotState(botFinal);
-      setResolveMessage(resolveMsg ?? null);
+      // Stage 1: apply intermediate states (first mover's hit lands on second)
+      playerStateRef.current = result.playerIntermediate;
+      botStateRef.current    = result.botIntermediate;
+      setPlayerState(result.playerIntermediate);
+      setBotState(result.botIntermediate);
 
-      // Win / loss check
-      if (playerFinal.hp <= 0 || botFinal.hp <= 0) {
-        setGameOver(playerFinal.hp <= 0 ? 'loss' : 'win');
+      // Win/loss check #1 — store in pending, don't show overlay yet
+      if (result.playerIntermediate.hp <= 0 || result.botIntermediate.hp <= 0) {
+        pendingResolutionRef.current.gameOverResult =
+          result.playerIntermediate.hp <= 0 ? 'loss' : 'win';
       }
 
-      // Pick effect component
-      const displayLocked = playerLocked === 'stunned' ? null : playerLocked;
-      setLockedGesture(displayLocked);
-      setGamePhase('resolving');
-
-      let EffectComponent = null;
-      if (effectKey === 'rest')                                    EffectComponent = RestEffect;
-      else if (effectKey === 'fail')                               EffectComponent = FailEffect;
-      else if (effectKey === 'multi_turn_start' && displayLocked)  EffectComponent = ABILITIES[displayLocked]?.ChargeEffect ?? null;
-      else if (effectKey === 'multi_turn_final' && displayLocked)  EffectComponent = ABILITIES[displayLocked]?.Effect ?? null;
-      else if (effectKey === 'domain_start' && displayLocked)      EffectComponent = ABILITIES[displayLocked]?.Effect ?? null;
-      else if (playerLocked === 'stunned')                         EffectComponent = StunEffect;
-      else if (displayLocked)                                      EffectComponent = ABILITIES[displayLocked]?.Effect ?? null;
-      setActiveEffect(() => EffectComponent);
+      // Stage 1 display: first mover's move
+      setResolveMessage(buildLabel(result.firstMoverIsPlayer ? 'YOU' : 'BOT', result.firstGesture, result.firstMessage));
+      const firstEffect = getEffectComponent(result.firstEffectKey, result.firstGesture);
+      setActiveEffect(result.firstMoverIsPlayer && firstEffect ? () => firstEffect : null);
+      setGamePhase('resolving_first');
     }, 1000);
 
     return () => clearInterval(interval);
   }, [gamePhase, gameOver]);
 
+  // ── Helpers for staged resolution display ─────────────────────────────────
+  function getEffectComponent(effectKey, gesture) {
+    const g = gesture === 'stunned' ? null : gesture;
+    if (effectKey === 'rest')             return RestEffect;
+    if (effectKey === 'fail')             return FailEffect;
+    if (effectKey === 'multi_turn_start') return g ? ABILITIES[g]?.ChargeEffect ?? null : null;
+    if (effectKey === 'multi_turn_final') return g ? ABILITIES[g]?.Effect ?? null : null;
+    if (effectKey === 'domain_start')     return g ? ABILITIES[g]?.Effect ?? null : null;
+    if (gesture === 'stunned')            return StunEffect;
+    return g ? ABILITIES[g]?.Effect ?? null : null;
+  }
+
+  function buildLabel(who, gesture, message) {
+    if (gesture === 'stunned') return `${who}: Stunned! Cannot move!`;
+    if (message) return `${who}: ${message}`;
+    const name = ABILITIES[gesture]?.name?.toUpperCase();
+    return name ? `${who}: ${name}` : null;
+  }
+
+  // ── resolving_first → resolving_second ────────────────────────────────────
   useEffect(() => {
-    if (gamePhase !== 'resolving') return;
+    if (gamePhase !== 'resolving_first') return;
+
+    const timeout = setTimeout(() => {
+      const r = pendingResolutionRef.current;
+
+      // Stage 2: apply final states (second mover's hit lands on first mover)
+      playerStateRef.current = r.playerFinal;
+      botStateRef.current    = r.botFinal;
+      setPlayerState(r.playerFinal);
+      setBotState(r.botFinal);
+
+      // Win/loss check #2: covers kills by second mover + propagates check #1
+      const go = r.gameOverResult ??
+        (r.playerFinal.hp <= 0 ? 'loss' : r.botFinal.hp <= 0 ? 'win' : null);
+      if (go) setGameOver(go);
+
+      // Stage 2 display: second mover's move
+      setResolveMessage(buildLabel(!r.firstMoverIsPlayer ? 'YOU' : 'BOT', r.secondGesture, r.secondMessage));
+      const secondEffect = getEffectComponent(r.secondEffectKey, r.secondGesture);
+      setActiveEffect(!r.firstMoverIsPlayer && secondEffect ? () => secondEffect : null);
+      setGamePhase('resolving_second');
+    }, RESOLVE_SUB_S * 1000);
+
+    return () => clearTimeout(timeout);
+  }, [gamePhase]);
+
+  // ── resolving_second → selecting ──────────────────────────────────────────
+  useEffect(() => {
+    if (gamePhase !== 'resolving_second') return;
 
     const timeout = setTimeout(() => {
       setActiveEffect(null);
-      setLockedGesture(null);
       if (!gameOver) setGamePhase('selecting');
-    }, RESOLVE_DURATION_S * 1000);
+    }, RESOLVE_SUB_S * 1000);
 
     return () => clearTimeout(timeout);
   }, [gamePhase, gameOver]);
@@ -451,7 +496,7 @@ export default function BotCanvas({ loadout, onBack }) {
           return L ? <L /> : null;
         })()}
 
-        <StatsHUD state={playerState} />
+        <StatsHUD state={playerState} baseSpeed={PLAYER_SPEED} />
         <AbilityDisplay gesture={currentGesture} loadout={loadout} />
         <LoadoutHUD loadout={loadout} />
 
@@ -468,7 +513,7 @@ export default function BotCanvas({ loadout, onBack }) {
           <span className="opponent-avatar-icon">🤖</span>
           <span className="opponent-avatar-label">BOT</span>
         </div>
-        <StatsHUD state={botState} />
+        <StatsHUD state={botState} baseSpeed={BOT_SPEED} />
         <LoadoutHUD loadout={BOT_LOADOUT} />
       </div>
 
@@ -481,7 +526,7 @@ export default function BotCanvas({ loadout, onBack }) {
                 : confirmedGesture
                   ? `READY: ${ABILITIES[confirmedGesture]?.name}`
                   : 'SELECT YOUR MOVE')
-            : (resolveMessage ?? ABILITIES[lockedGesture]?.name?.toUpperCase() ?? 'NO MOVE')}
+            : (resolveMessage ?? 'NO MOVE')}
         </div>
         <div className="turn-timer-track">
           {gamePhase === 'selecting' && <div key={turnKey} className="turn-timer-fill" />}

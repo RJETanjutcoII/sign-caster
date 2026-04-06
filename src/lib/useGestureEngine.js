@@ -210,7 +210,7 @@ export function useGestureEngine({
           zctx.drawImage(video, w * zoomOffset, h * zoomOffset, w * zoomScale, h * zoomScale, 0, 0, w, h);
           detectionSource = zc;
         }
-        const handResult = handLandmarker.detectForVideo(detectionSource, performance.now());
+        const handResult  = handLandmarker.detectForVideo(detectionSource, performance.now());
 
         // Face detection — every other frame
         frameCountRef.current++;
@@ -225,7 +225,8 @@ export function useGestureEngine({
           }
         }
         const faceLandmarks = cachedFaceLandmarksRef.current;
-        const hands = handResult.landmarks ?? [];
+        const hands      = handResult.landmarks   ?? [];
+        const handedness = handResult.handedness  ?? [];
 
         // Warmup: wait for 3 consecutive frames with hands
         if (gamePhaseRef.current === 'warmup') {
@@ -257,19 +258,19 @@ export function useGestureEngine({
         if (!detected && hands.length >= 2) {
           for (const key of loadout) {
             const ab = ABILITIES[key];
-            if (ab.gestureType === 'two-hand' && ab.detect(hands, faceLandmarks)) { detected = key; break; }
+            if (ab.gestureType === 'two-hand' && ab.detect(hands, faceLandmarks, handedness)) { detected = key; break; }
           }
         }
         if (!detected && hands.length > 0) {
           for (const key of loadout) {
             const ab = ABILITIES[key];
-            if (ab.gestureType === 'single' && ab.detect(hands, faceLandmarks)) { detected = key; break; }
+            if (ab.gestureType === 'single' && ab.detect(hands, faceLandmarks, handedness)) { detected = key; break; }
           }
         }
         if (!detected) {
           for (const key of loadout) {
             const ab = ABILITIES[key];
-            if (ab.gestureType === 'face' && ab.detect(hands, faceLandmarks)) { detected = key; break; }
+            if (ab.gestureType === 'face' && ab.detect(hands, faceLandmarks, handedness)) { detected = key; break; }
           }
         }
 

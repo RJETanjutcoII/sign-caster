@@ -127,5 +127,5 @@ export default {
   ChargeEffect,
   LoopEffect,
   Effect,
-  resolve() { return { damage: 50 }; },
+  resolve() { return { damage: 75 }; },
 };

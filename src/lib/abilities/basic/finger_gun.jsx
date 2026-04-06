@@ -34,5 +34,5 @@ export default {
     return indexExtended && thumbUp && middleCurled && ringCurled && pinkyCurled;
   },
   Effect,
-  resolve() { return { damage: 10 }; },
+  resolve() { return { damage: 15 }; },
 };

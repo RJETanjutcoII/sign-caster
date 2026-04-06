@@ -10,13 +10,13 @@ import LoadoutHUD from './LoadoutHUD';
 import StatsHUD from './StatsHUD';
 import dynamic from 'next/dynamic';
 const DomainLayer = dynamic(() => import('./DomainLayer'), { ssr: false });
-import { INITIAL_STATE, applyStartOfTurn, resolveTurn } from '@/lib/gameState';
+import { makeState, applyStartOfTurn, resolveTurn } from '@/lib/gameState';
 import { useGestureEngine } from '@/lib/useGestureEngine';
 
 const TURN_DURATION_S    = 5;   // gesture selection window
 const RESOLVE_DURATION_S = 4;   // time to display the effect before next round
 
-export default function TrainingCanvas({ loadout, onBack }) {
+export default function TrainingCanvas({ loadout, build, onBack }) {
   const videoRef  = useRef(null);
   const canvasRef = useRef(null);
 
@@ -33,8 +33,9 @@ export default function TrainingCanvas({ loadout, onBack }) {
   const forcedGestureRef = useRef(null);
 
   // Player game state
-  const [playerState, setPlayerState] = useState(INITIAL_STATE);
-  const playerStateRef = useRef(INITIAL_STATE);
+  const playerInit = makeState(build);
+  const [playerState, setPlayerState] = useState(playerInit);
+  const playerStateRef = useRef(playerInit);
 
   // Debug / dev helpers
   const [showLandmarks, setShowLandmarks] = useState(false);

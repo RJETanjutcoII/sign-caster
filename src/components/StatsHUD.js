@@ -1,15 +1,20 @@
 'use client';
 
-export default function StatsHUD({ state, baseSpeed }) {
+export default function StatsHUD({ state }) {
   if (!state) return null;
 
   const { hp, maxHp, mana, maxMana, ultBar, maxUlt,
-          stunTurnsRemaining, dot, multiTurnActive, activeDomain, nullified, speedMod } = state;
+          atk, def, spd,
+          stunTurnsRemaining, dot, multiTurnActive, activeDomain, nullified,
+          speedMod, tempAtk, tempDef } = state;
 
-  const hpPct   = (hp   / maxHp)   * 100;
-  const mpPct   = (mana / maxMana) * 100;
-  const ultPct  = (ultBar / maxUlt) * 100;
-  const effectiveSpeed = baseSpeed != null ? Math.max(0, baseSpeed + (speedMod || 0)) : null;
+  const hpPct  = (hp   / maxHp)   * 100;
+  const mpPct  = (mana / maxMana) * 100;
+  const ultPct = (ultBar / maxUlt) * 100;
+
+  const effectiveSpd = Math.max(0, (spd || 1) + (speedMod || 0));
+  const effectiveAtk = (atk || 0) + (tempAtk?.delta ?? 0);
+  const effectiveDef = (def || 0) + (tempDef?.delta ?? 0);
 
   const statuses = [];
   if (stunTurnsRemaining > 0) statuses.push(`STUNNED (${stunTurnsRemaining})`);
@@ -44,10 +49,26 @@ export default function StatsHUD({ state, baseSpeed }) {
         <span className="stats-value">{ultBar}/{maxUlt}</span>
       </div>
 
-      {effectiveSpeed != null && (
+      <div className="stats-row">
+        <span className="stats-label">SPD</span>
+        <span className="stats-value stats-value--spd">{effectiveSpd}</span>
+      </div>
+
+      {effectiveAtk > 0 && (
         <div className="stats-row">
-          <span className="stats-label">SPD</span>
-          <span className="stats-value stats-value--spd">{effectiveSpeed}</span>
+          <span className="stats-label">ATK</span>
+          <span className="stats-value" style={{ color: tempAtk?.delta > 0 ? '#7f7' : tempAtk?.delta < 0 ? '#f77' : undefined }}>
+            +{effectiveAtk}
+          </span>
+        </div>
+      )}
+
+      {effectiveDef > 0 && (
+        <div className="stats-row">
+          <span className="stats-label">DEF</span>
+          <span className="stats-value" style={{ color: tempDef?.delta > 0 ? '#7f7' : tempDef?.delta < 0 ? '#f77' : undefined }}>
+            -{effectiveDef}
+          </span>
         </div>
       )}
 

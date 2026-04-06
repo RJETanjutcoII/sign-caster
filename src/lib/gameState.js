@@ -1,17 +1,27 @@
 import { ABILITIES } from './abilities';
 
-export const INITIAL_STATE = {
-  hp:    100, maxHp:   100,
-  mana:   20, maxMana:  20,
-  ultBar:  0, maxUlt:    5,
-  // Ongoing effects
-  stunTurnsRemaining: 0,
-  dot: null,               // { damage, turnsRemaining }
-  multiTurnActive: null,   // { abilityKey, turnsLeft } when a multi-turn move is charging
-  activeDomain: null,      // { abilityKey, turnsLeft } when a domain is active
-  nullified: false,        // incoming attacks negated this turn (IT)
-  speedMod: 0,             // net speed modifier: positive = faster, negative = slower
-};
+/**
+ * Creates a fresh player state from a build configuration.
+ * @param {{ hp?, atk?, def?, spd?, mp? }} build
+ */
+export function makeState({ hp = 120, atk = 0, def = 0, spd = 1, mp = 20 } = {}) {
+  return {
+    hp, maxHp: hp,
+    mana: mp, maxMana: mp,
+    ultBar: 0, maxUlt: 5,
+    atk, def, spd,
+    stunTurnsRemaining: 0,
+    dot: null,               // { damage, turnsRemaining }
+    multiTurnActive: null,   // { abilityKey, turnsLeft }
+    activeDomain: null,      // { abilityKey, turnsLeft }
+    nullified: false,        // incoming attacks negated this turn (IT)
+    speedMod: 0,             // net speed modifier: positive = faster, negative = slower
+    tempAtk: null,           // { delta, turnsLeft } — temporary ATK buff/debuff
+    tempDef: null,           // { delta, turnsLeft } — temporary DEF buff/debuff
+  };
+}
+
+export const INITIAL_STATE = makeState();
 
 /**
  * Called at the start of each selecting phase.
@@ -23,6 +33,10 @@ export const INITIAL_STATE = {
  */
 export function applyStartOfTurn(state) {
   const s = { ...state, nullified: false };
+
+  // Tick temporary ATK/DEF modifiers
+  if (s.tempAtk) s.tempAtk = s.tempAtk.turnsLeft <= 1 ? null : { ...s.tempAtk, turnsLeft: s.tempAtk.turnsLeft - 1 };
+  if (s.tempDef) s.tempDef = s.tempDef.turnsLeft <= 1 ? null : { ...s.tempDef, turnsLeft: s.tempDef.turnsLeft - 1 };
 
   // Tick domain passive
   const domainOutgoing = { damage: 0, stunTurns: 0 };
@@ -103,7 +117,9 @@ export function resolveTurn(state, gesture) {
     outgoing.undodgeable = ability.undodgeable ?? false;
     if (ability.resolve) {
       const result = ability.resolve({ caster: s });
+      const effectiveAtk = (s.atk || 0) + (s.tempAtk?.delta ?? 0);
       outgoing.damage    = result.damage    ?? 0;
+      if (outgoing.damage > 0) outgoing.damage += effectiveAtk;
       outgoing.stunTurns = result.stunTurns ?? 0;
       outgoing.dot       = result.dot       ?? null;
     }
@@ -119,10 +135,16 @@ export function resolveTurn(state, gesture) {
     const result = ability.resolve({ caster: s });
     if (result.healSelf)    s.hp = Math.min(s.maxHp, s.hp + result.healSelf);
     if (result.nullifySelf) s.nullified = true;
-    outgoing.damage      = result.damage      ?? 0;
+    if (result.atkBuff)     s.tempAtk = result.atkBuff;
+    if (result.defBuff)     s.tempDef = result.defBuff;
+    const effectiveAtk   = (s.atk || 0) + (s.tempAtk?.delta ?? 0);
+    outgoing.damage      = result.damage ?? 0;
+    if (outgoing.damage > 0) outgoing.damage += effectiveAtk;
     outgoing.stunTurns   = result.stunTurns   ?? 0;
     outgoing.noRestBonus = result.noRestBonus ?? false;
     outgoing.dot         = result.dot         ?? null;
+    if (result.atkDebuff) outgoing.atkDebuff = result.atkDebuff;
+    if (result.defDebuff) outgoing.defDebuff = result.defDebuff;
     return { newState: s, outgoing, effectKey: 'multi_turn_final' };
   }
 
@@ -155,11 +177,17 @@ export function resolveTurn(state, gesture) {
   if (result.healSelf)    s.hp = Math.min(s.maxHp, s.hp + result.healSelf);
   if (result.nullifySelf) s.nullified = true;
   if (result.speedBoost)  s.speedMod = (s.speedMod || 0) + result.speedBoost;
-  outgoing.damage      = result.damage      ?? 0;
+  if (result.atkBuff)     s.tempAtk = result.atkBuff;
+  if (result.defBuff)     s.tempDef = result.defBuff;
+  const effectiveAtk   = (s.atk || 0) + (s.tempAtk?.delta ?? 0);
+  outgoing.damage      = result.damage ?? 0;
+  if (outgoing.damage > 0) outgoing.damage += effectiveAtk;
   outgoing.stunTurns   = result.stunTurns   ?? 0;
   outgoing.noRestBonus = result.noRestBonus ?? false;
   outgoing.dot         = result.dot         ?? null;
   outgoing.undodgeable = ability.undodgeable ?? false;
+  if (result.atkDebuff) outgoing.atkDebuff = result.atkDebuff;
+  if (result.defDebuff) outgoing.defDebuff = result.defDebuff;
 
   return { newState: s, outgoing, message: result.message ?? message };
 }
@@ -178,7 +206,10 @@ export function applyIncoming(state, outgoing) {
   if (state.nullified && !outgoing.undodgeable) return state;
 
   let s = { ...state };
-  s.hp = Math.max(0, s.hp - (outgoing.damage || 0));
+  const rawDamage    = outgoing.damage || 0;
+  const effectiveDef = (s.def || 0) + (s.tempDef?.delta ?? 0);
+  const reduced      = rawDamage > 0 ? Math.max(1, rawDamage - effectiveDef) : 0;
+  s.hp = Math.max(0, s.hp - reduced);
   if (outgoing.stunTurns) {
     s.stunTurnsRemaining = Math.max(s.stunTurnsRemaining, outgoing.stunTurns);
   }
@@ -187,6 +218,12 @@ export function applyIncoming(state, outgoing) {
   }
   if (outgoing.speedReduction) {
     s.speedMod = (s.speedMod || 0) - outgoing.speedReduction;
+  }
+  if (outgoing.atkDebuff) {
+    s.tempAtk = { delta: -(outgoing.atkDebuff.amount), turnsLeft: outgoing.atkDebuff.turns };
+  }
+  if (outgoing.defDebuff) {
+    s.tempDef = { delta: -(outgoing.defDebuff.amount), turnsLeft: outgoing.defDebuff.turns };
   }
   return s;
 }

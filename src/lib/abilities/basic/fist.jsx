@@ -35,5 +35,5 @@ export default {
     return !thumbHighAboveWrist;
   },
   Effect,
-  resolve() { return { damage: 10 }; },
+  resolve() { return { damage: 15 }; },
 };

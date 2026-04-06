@@ -35,5 +35,5 @@ export default {
     return lm[4].y < lm[0].y - handSize * 0.9;
   },
   Effect,
-  resolve() { return { healSelf: 10 }; },
+  resolve() { return { healSelf: 15 }; },
 };

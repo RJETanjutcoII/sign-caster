@@ -51,5 +51,5 @@ export default {
     return isOpenPalm(lm0) && isOpenPalm(lm1) && dist(lm0[0], lm1[0]) < 0.35;
   },
   Effect,
-  resolve() { return { damage: 20 }; },
+  resolve() { return { damage: 30 }; },
 };

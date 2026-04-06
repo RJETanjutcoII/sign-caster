@@ -10,17 +10,15 @@ import LoadoutHUD from './LoadoutHUD';
 import StatsHUD from './StatsHUD';
 import dynamic from 'next/dynamic';
 const DomainLayer = dynamic(() => import('./DomainLayer'), { ssr: false });
-import { INITIAL_STATE, applyStartOfTurn, applyIncoming, resolveOrderedTurns } from '@/lib/gameState';
-import { BOT_LOADOUT, chooseBotGesture } from '@/lib/bot';
+import { makeState, applyStartOfTurn, applyIncoming, resolveOrderedTurns } from '@/lib/gameState';
+import { BOT_LOADOUT, BOT_BUILD, chooseBotGesture } from '@/lib/bot';
 import { useGestureEngine } from '@/lib/useGestureEngine';
 
 const TURN_DURATION_S = 5;
 const RESOLVE_SUB_S   = 2;   // duration of each resolve sub-phase
-const PLAYER_SPEED    = 1;
-const BOT_SPEED       = 2;
 const ZOOM            = 1.25;
 
-export default function BotCanvas({ loadout, onBack }) {
+export default function BotCanvas({ loadout, build, onBack }) {
   const videoRef  = useRef(null);
   const canvasRef = useRef(null);
 
@@ -37,12 +35,15 @@ export default function BotCanvas({ loadout, onBack }) {
   const forcedGestureRef = useRef(null);
 
   // ── Player state ──────────────────────────────────────────────────────────
-  const [playerState, setPlayerState] = useState(INITIAL_STATE);
-  const playerStateRef  = useRef(INITIAL_STATE);
+  const playerInit = makeState(build);
+  const botInit    = makeState(BOT_BUILD);
+
+  const [playerState, setPlayerState] = useState(playerInit);
+  const playerStateRef  = useRef(playerInit);
 
   // ── Bot state ─────────────────────────────────────────────────────────────
-  const [botState, setBotState] = useState(INITIAL_STATE);
-  const botStateRef        = useRef(INITIAL_STATE);
+  const [botState, setBotState] = useState(botInit);
+  const botStateRef        = useRef(botInit);
   const botForcedGestureRef = useRef(null);
   const botLockedGestureRef = useRef(null);
 
@@ -119,8 +120,8 @@ export default function BotCanvas({ loadout, onBack }) {
       forcedGestureRef.current = null;
 
       // Resolve with speed/priority ordering (speed reduced by accumulated penalties)
-      const playerSpeed = Math.max(0, PLAYER_SPEED + (playerStateRef.current.speedMod || 0));
-      const botSpeed    = Math.max(0, BOT_SPEED    + (botStateRef.current.speedMod    || 0));
+      const playerSpeed = Math.max(0, (playerStateRef.current.spd || 1) + (playerStateRef.current.speedMod || 0));
+      const botSpeed    = Math.max(0, (botStateRef.current.spd    || 1) + (botStateRef.current.speedMod    || 0));
       const result = resolveOrderedTurns(
         playerStateRef.current, playerLocked, playerSpeed,
         botStateRef.current,    botLocked,    botSpeed
@@ -239,7 +240,7 @@ export default function BotCanvas({ loadout, onBack }) {
           return L ? <L /> : null;
         })()}
 
-        <StatsHUD state={playerState} baseSpeed={PLAYER_SPEED} />
+        <StatsHUD state={playerState} />
         <AbilityDisplay gesture={currentGesture} loadout={loadout} />
         <LoadoutHUD loadout={loadout} />
 
@@ -256,7 +257,7 @@ export default function BotCanvas({ loadout, onBack }) {
           <span className="opponent-avatar-icon">🤖</span>
           <span className="opponent-avatar-label">BOT</span>
         </div>
-        <StatsHUD state={botState} baseSpeed={BOT_SPEED} />
+        <StatsHUD state={botState} />
         <LoadoutHUD loadout={BOT_LOADOUT} />
       </div>
 

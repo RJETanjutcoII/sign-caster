@@ -4,6 +4,7 @@ import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import ModeSelect from '@/components/ModeSelect';
 import CameraCheck from '@/components/CameraCheck';
+import StatBuilder from '@/components/StatBuilder';
 import LoadoutSelect from '@/components/LoadoutSelect';
 
 const TrainingCanvas = dynamic(() => import('@/components/TrainingCanvas'), {
@@ -19,6 +20,7 @@ const BotCanvas = dynamic(() => import('@/components/BotCanvas'), {
 export default function Home() {
   const [mode,         setMode]         = useState(null);  // null | 'training' | 'bot'
   const [cameraReady,  setCameraReady]  = useState(false);
+  const [build,        setBuild]        = useState(null);
   const [loadout,      setLoadout]      = useState(null);
 
   if (!mode) {
@@ -29,13 +31,17 @@ export default function Home() {
     return <CameraCheck onReady={() => setCameraReady(true)} onBack={() => setMode(null)} />;
   }
 
+  if (!build) {
+    return <StatBuilder onConfirm={setBuild} onBack={() => { setCameraReady(false); setMode(null); }} />;
+  }
+
   if (!loadout) {
-    return <LoadoutSelect onStart={setLoadout} onBack={() => { setCameraReady(false); setMode(null); }} />;
+    return <LoadoutSelect onStart={setLoadout} onBack={() => setBuild(null)} />;
   }
 
   if (mode === 'training') {
-    return <TrainingCanvas loadout={loadout} onBack={() => setLoadout(null)} />;
+    return <TrainingCanvas loadout={loadout} build={build} onBack={() => setLoadout(null)} />;
   }
 
-  return <BotCanvas loadout={loadout} onBack={() => setLoadout(null)} />;
+  return <BotCanvas loadout={loadout} build={build} onBack={() => setLoadout(null)} />;
 }

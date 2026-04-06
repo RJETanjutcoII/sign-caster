@@ -36,5 +36,5 @@ export default {
     return dy > dx;
   },
   Effect,
-  resolve() { return { damage: 20 }; },
+  resolve() { return { damage: 30 }; },
 };

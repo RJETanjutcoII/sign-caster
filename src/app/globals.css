@@ -1244,6 +1244,186 @@ body:has(.statbuilder-screen) {
   background: rgba(255, 200, 60, 0.06);
 }
 
+.mode-btn--pvp {
+  border-color: rgba(100, 200, 255, 0.3);
+}
+
+.mode-btn--pvp:hover {
+  border-color: rgba(100, 200, 255, 0.7);
+  background: rgba(100, 200, 255, 0.06);
+}
+
+/* ── Lobby screen ───────────────────────────────────────── */
+
+.lobby-screen {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+  padding: 2rem;
+}
+
+.lobby-title {
+  font-size: clamp(2rem, 6vw, 4rem);
+  letter-spacing: 0.25em;
+  color: #fff;
+}
+
+.lobby-error {
+  color: #ff6666;
+  font-size: 0.9rem;
+  letter-spacing: 0.05em;
+}
+
+.lobby-menu {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  max-width: 320px;
+}
+
+.lobby-btn {
+  width: 100%;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  font-family: monospace;
+  font-size: 1rem;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.lobby-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.45);
+}
+
+.lobby-btn--create {
+  border-color: rgba(100, 200, 255, 0.4);
+}
+
+.lobby-btn--create:hover {
+  background: rgba(100, 200, 255, 0.08);
+  border-color: rgba(100, 200, 255, 0.7);
+}
+
+.lobby-divider {
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 0.8rem;
+  letter-spacing: 0.1em;
+}
+
+.lobby-join-row {
+  display: flex;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.lobby-input {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  color: #fff;
+  font-family: monospace;
+  font-size: 1.1rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  text-align: center;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.lobby-input:focus {
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.lobby-join-row .lobby-btn {
+  width: auto;
+  flex-shrink: 0;
+}
+
+.lobby-waiting {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.2rem;
+}
+
+.lobby-code-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 1.2rem 2.5rem;
+}
+
+.lobby-code-label {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.4);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.lobby-code {
+  font-size: 3rem;
+  font-weight: bold;
+  letter-spacing: 0.4em;
+  color: #7af;
+}
+
+.lobby-code-hint {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.3);
+  letter-spacing: 0.06em;
+}
+
+.lobby-waiting-text {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.5);
+  letter-spacing: 0.06em;
+}
+
+.lobby-spinner {
+  width: 28px;
+  height: 28px;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  border-top-color: rgba(119, 170, 255, 0.8);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.lobby-connected-text {
+  font-size: 1rem;
+  color: #7f7;
+  letter-spacing: 0.08em;
+}
+
+.lobby-countdown {
+  font-size: 5rem;
+  font-weight: bold;
+  color: rgba(255, 255, 255, 0.85);
+  animation: pulse-once 1s ease-in-out;
+}
+
+@keyframes pulse-once {
+  0%   { transform: scale(1.4); opacity: 0.5; }
+  100% { transform: scale(1);   opacity: 1; }
+}
+
 .mode-btn-name {
   font-size: 1.15rem;
   font-weight: bold;

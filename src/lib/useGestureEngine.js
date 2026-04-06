@@ -15,44 +15,54 @@ const HAND_CONNECTIONS  = [
   [5,9],[9,13],[13,17],
 ];
 
+// Batched face landmark drawing — 2 style blocks instead of 468 individual ones
 function drawFaceLandmarks(ctx, landmarks, w, h, scale, offset) {
+  // Small dots (non-highlighted)
+  ctx.fillStyle = 'rgba(180, 130, 255, 0.55)';
+  ctx.beginPath();
   for (let i = 0; i < landmarks.length; i++) {
+    if (FACE_HIGHLIGHTED.has(i)) continue;
     const lm = landmarks[i];
     const x  = (1 - (offset + lm.x * scale)) * w;
     const y  = (offset + lm.y * scale) * h;
-    ctx.beginPath();
-    if (FACE_HIGHLIGHTED.has(i)) {
-      ctx.arc(x, y, 2.5, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(255, 210, 60, 0.9)';
-    } else {
-      ctx.arc(x, y, 1.5, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(180, 130, 255, 0.55)';
-    }
-    ctx.fill();
+    ctx.moveTo(x, y);
+    ctx.arc(x, y, 1.5, 0, Math.PI * 2);
   }
+  ctx.fill();
+
+  // Highlighted dots
+  ctx.fillStyle = 'rgba(255, 210, 60, 0.9)';
+  ctx.beginPath();
+  for (const i of FACE_HIGHLIGHTED) {
+    if (i >= landmarks.length) continue;
+    const lm = landmarks[i];
+    const x  = (1 - (offset + lm.x * scale)) * w;
+    const y  = (offset + lm.y * scale) * h;
+    ctx.moveTo(x, y);
+    ctx.arc(x, y, 2.5, 0, Math.PI * 2);
+  }
+  ctx.fill();
 }
 
 function drawHandLandmarks(ctx, landmarks, w, h, scale, offset) {
   ctx.strokeStyle = 'rgba(0, 255, 180, 0.8)';
   ctx.lineWidth = 2;
+  ctx.beginPath();
   for (const [a, b] of HAND_CONNECTIONS) {
-    const ax = (1 - (offset + landmarks[a].x * scale)) * w;
-    const ay = (offset + landmarks[a].y * scale) * h;
-    const bx = (1 - (offset + landmarks[b].x * scale)) * w;
-    const by = (offset + landmarks[b].y * scale) * h;
-    ctx.beginPath();
-    ctx.moveTo(ax, ay);
-    ctx.lineTo(bx, by);
-    ctx.stroke();
+    ctx.moveTo((1 - (offset + landmarks[a].x * scale)) * w, (offset + landmarks[a].y * scale) * h);
+    ctx.lineTo((1 - (offset + landmarks[b].x * scale)) * w, (offset + landmarks[b].y * scale) * h);
   }
+  ctx.stroke();
+
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+  ctx.beginPath();
   for (const lm of landmarks) {
     const x = (1 - (offset + lm.x * scale)) * w;
     const y = (offset + lm.y * scale) * h;
-    ctx.beginPath();
+    ctx.moveTo(x, y);
     ctx.arc(x, y, 4, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-    ctx.fill();
   }
+  ctx.fill();
 }
 
 /**
@@ -90,13 +100,13 @@ export function useGestureEngine({
   // Refs the hook owns internally
   const landmarkerRef          = useRef(null);
   const faceLandmarkerRef      = useRef(null);
-  const rafRef                 = useRef(null);
+  const rafRef                 = useRef(null);  // holds setTimeout id
   const zoomCanvasRef          = useRef(null);
+  const zoomCtxRef             = useRef(null);  // cached 2d context for zoom canvas
   const frameCountRef          = useRef(0);
   const lastFaceTsRef          = useRef(0);
   const cachedFaceLandmarksRef = useRef(null);
   const gestureHoldRef         = useRef({ gesture: null, since: 0 });
-  const lastInferenceRef       = useRef(0);
   const warmupCountRef         = useRef(0);
   const currentGestureRef      = useRef(null);
 
@@ -104,7 +114,7 @@ export function useGestureEngine({
   const confirmedGestureRef = useRef(null);
   const lastGestureRef      = useRef(null);
 
-  // Keep callbacks fresh without restarting the rAF loop
+  // Keep callbacks fresh without restarting the loop
   const onWarmupCompleteRef = useRef(onWarmupComplete);
   const onConfirmRef        = useRef(onConfirm);
   const onCancelRef         = useRef(onCancel);
@@ -118,6 +128,18 @@ export function useGestureEngine({
   );
   const hasFaceGestureRef = useRef(hasFaceGesture);
   useEffect(() => { hasFaceGestureRef.current = hasFaceGesture; }, [hasFaceGesture]);
+
+  // Pre-group loadout abilities by gestureType — avoids 3× iteration per frame
+  const gestureGroups = useMemo(() => {
+    const g = { 'two-hand': [], single: [], face: [] };
+    for (const key of loadout) {
+      const type = ABILITIES[key]?.gestureType;
+      if (type && g[type]) g[type].push(key);
+    }
+    return g;
+  }, [loadout]);
+  const gestureGroupsRef = useRef(gestureGroups);
+  useEffect(() => { gestureGroupsRef.current = gestureGroups; }, [gestureGroups]);
 
   // Precompute zoom drawing params
   const zoomScale  = zoom ? 1 / zoom : 1;
@@ -183,6 +205,7 @@ export function useGestureEngine({
         zc.width  = video.videoWidth;
         zc.height = video.videoHeight;
         zoomCanvasRef.current = zc;
+        zoomCtxRef.current    = zc.getContext('2d');
       }
 
       setStatus(null);
@@ -190,27 +213,18 @@ export function useGestureEngine({
       function loop() {
         if (stopped) return;
 
-        const now = performance.now();
-        if (now - lastInferenceRef.current < 33) {
-          rafRef.current = requestAnimationFrame(loop);
-          return;
-        }
-        lastInferenceRef.current = now;
-
         const canvas = canvasRef.current;
-        if (!canvas || !video) { rafRef.current = requestAnimationFrame(loop); return; }
+        if (!canvas || !video) { rafRef.current = setTimeout(loop, 33); return; }
 
         const { videoWidth: w, videoHeight: h } = video;
 
         // Hand detection — optionally via zoom canvas
         let detectionSource = video;
         if (zoom && zoomCanvasRef.current) {
-          const zc   = zoomCanvasRef.current;
-          const zctx = zc.getContext('2d');
-          zctx.drawImage(video, w * zoomOffset, h * zoomOffset, w * zoomScale, h * zoomScale, 0, 0, w, h);
-          detectionSource = zc;
+          zoomCtxRef.current.drawImage(video, w * zoomOffset, h * zoomOffset, w * zoomScale, h * zoomScale, 0, 0, w, h);
+          detectionSource = zoomCanvasRef.current;
         }
-        const handResult  = handLandmarker.detectForVideo(detectionSource, performance.now());
+        const handResult = handLandmarker.detectForVideo(detectionSource, performance.now());
 
         // Face detection — every other frame
         frameCountRef.current++;
@@ -239,11 +253,11 @@ export function useGestureEngine({
           } else {
             warmupCountRef.current = 0;
           }
-          rafRef.current = requestAnimationFrame(loop);
+          rafRef.current = setTimeout(loop, 33);
           return;
         }
 
-        // Landmark drawing (when enabled)
+        // Landmark drawing (debug — when enabled)
         if (showLandmarksRef.current) {
           if (canvas.width !== w) canvas.width = w;
           if (canvas.height !== h) canvas.height = h;
@@ -254,23 +268,21 @@ export function useGestureEngine({
         }
 
         // Gesture detection — priority: two-hand > single-hand > face
+        const groups = gestureGroupsRef.current;
         let detected = null;
         if (!detected && hands.length >= 2) {
-          for (const key of loadout) {
-            const ab = ABILITIES[key];
-            if (ab.gestureType === 'two-hand' && ab.detect(hands, faceLandmarks, handedness)) { detected = key; break; }
+          for (const key of groups['two-hand']) {
+            if (ABILITIES[key].detect(hands, faceLandmarks, handedness)) { detected = key; break; }
           }
         }
         if (!detected && hands.length > 0) {
-          for (const key of loadout) {
-            const ab = ABILITIES[key];
-            if (ab.gestureType === 'single' && ab.detect(hands, faceLandmarks, handedness)) { detected = key; break; }
+          for (const key of groups.single) {
+            if (ABILITIES[key].detect(hands, faceLandmarks, handedness)) { detected = key; break; }
           }
         }
         if (!detected) {
-          for (const key of loadout) {
-            const ab = ABILITIES[key];
-            if (ab.gestureType === 'face' && ab.detect(hands, faceLandmarks, handedness)) { detected = key; break; }
+          for (const key of groups.face) {
+            if (ABILITIES[key].detect(hands, faceLandmarks, handedness)) { detected = key; break; }
           }
         }
 
@@ -306,10 +318,10 @@ export function useGestureEngine({
           gestureHoldRef.current = { gesture, since: Date.now() };
         }
 
-        rafRef.current = requestAnimationFrame(loop);
+        rafRef.current = setTimeout(loop, 33);
       }
 
-      rafRef.current = requestAnimationFrame(loop);
+      rafRef.current = setTimeout(loop, 0);
     }
 
     init().catch(err => {
@@ -320,7 +332,7 @@ export function useGestureEngine({
     return () => {
       stopped = true;
       console.error = originalConsoleError;
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      if (rafRef.current) clearTimeout(rafRef.current);
       if (videoRef.current?.srcObject)
         videoRef.current.srcObject.getTracks().forEach(t => t.stop());
       landmarkerRef.current?.close();

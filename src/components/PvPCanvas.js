@@ -3,15 +3,16 @@
 import { useEffect, useRef, useState } from 'react';
 import MultiUI from './MultiUI';
 import { makeState, applyStartOfTurn, applyIncoming, resolveOrderedTurns } from '@/lib/gameState';
-import { BOT_LOADOUT, BOT_BUILD, chooseBotGesture } from '@/lib/bot';
 import { useGestureEngine } from '@/lib/useGestureEngine';
+import { useWebRTC } from '@/lib/useWebRTC';
 import { getEffectComponent, buildLabel } from '@/lib/effectHelper';
 
 const TURN_DURATION_S = 5;
 const RESOLVE_SUB_S   = 2;
-const ZOOM            = 1.25;
+const OPPONENT_TIMEOUT_MS = 3000;
+const ZOOM = 1.25;
 
-export default function BotCanvas({ loadout, build, onBack }) {
+export default function PvPCanvas({ loadout, build, opponentLoadout, opponentBuild, playerId, mp, onBack }) {
   const videoRef  = useRef(null);
   const canvasRef = useRef(null);
 
@@ -28,18 +29,15 @@ export default function BotCanvas({ loadout, build, onBack }) {
   const forcedGestureRef = useRef(null);
 
   // ── Player state ──────────────────────────────────────────────────────────
-  const playerInit = makeState(build);
-  const [playerState, setPlayerState] = useState(playerInit);
-  const playerStateRef  = useRef(playerInit);
+  const playerInit   = makeState(build);
+  const opponentInit = makeState(opponentBuild);
 
-  // ── Bot state ─────────────────────────────────────────────────────────────
-  const botInit = makeState(BOT_BUILD);
-  const [botState, setBotState] = useState(botInit);
-  const botStateRef        = useRef(botInit);
-  const botForcedGestureRef = useRef(null);
-  const botLockedGestureRef = useRef(null);
+  const [playerState,   setPlayerState]   = useState(playerInit);
+  const [opponentState, setOpponentState] = useState(opponentInit);
+  const playerStateRef   = useRef(playerInit);
+  const opponentStateRef = useRef(opponentInit);
 
-  // ── Staged resolution data ────────────────────────────────────────────────
+  // ── Pending resolution ────────────────────────────────────────────────────
   const pendingResolutionRef = useRef(null);
 
   // ── Dev helpers ───────────────────────────────────────────────────────────
@@ -63,6 +61,21 @@ export default function BotCanvas({ loadout, build, onBack }) {
     onCancel:         ()  => setConfirmedGesture(null),
   });
 
+  // ── Opponent camera (WebRTC) ──────────────────────────────────────────────
+  const opponentVideoRef = useRef(null);
+  const { opponentStream } = useWebRTC({ mp, playerId, localVideoRef: videoRef, enabled: gamePhase !== 'warmup' });
+
+  useEffect(() => {
+    if (opponentVideoRef.current && opponentStream) {
+      opponentVideoRef.current.srcObject = opponentStream;
+    }
+  }, [opponentStream]);
+
+  // ── Disconnect handling ───────────────────────────────────────────────────
+  useEffect(() => {
+    if (mp.disconnected) setGameOver('win'); // opponent left = you win
+  }, [mp.disconnected]);
+
   // ── Turn timer ────────────────────────────────────────────────────────────
   useEffect(() => {
     if (gamePhase !== 'selecting') return;
@@ -75,24 +88,20 @@ export default function BotCanvas({ loadout, build, onBack }) {
     playerStateRef.current = sotState;
     forcedGestureRef.current = forcedGesture;
 
-    // Apply player's domain outgoing to bot BEFORE bot SOT
+    // Apply player's domain outgoing to opponent BEFORE opponent SOT
     if (playerDomainOut.damage > 0 || playerDomainOut.stunTurns > 0) {
-      botStateRef.current = applyIncoming({ ...botStateRef.current, nullified: false }, playerDomainOut);
+      opponentStateRef.current = applyIncoming({ ...opponentStateRef.current, nullified: false }, playerDomainOut);
     }
 
-    // Start of turn — bot
-    const { newState: botSot, forcedGesture: botForced, domainOutgoing: botDomainOut } = applyStartOfTurn(botStateRef.current);
-    botStateRef.current = botSot;
-    const botChoice = botForced ?? chooseBotGesture(botSot, BOT_LOADOUT);
-    botLockedGestureRef.current = botChoice;
-    botForcedGestureRef.current = botForced;
+    // Opponent SOT (computed locally — deterministic mirror of their client)
+    const { newState: oppSot, domainOutgoing: oppDomainOut } = applyStartOfTurn(opponentStateRef.current);
+    opponentStateRef.current = oppSot;
 
-    // Apply bot's domain outgoing to player
-    if (botDomainOut.damage > 0 || botDomainOut.stunTurns > 0) {
-      playerStateRef.current = applyIncoming(playerStateRef.current, botDomainOut);
+    if (oppDomainOut.damage > 0 || oppDomainOut.stunTurns > 0) {
+      playerStateRef.current = applyIncoming(playerStateRef.current, oppDomainOut);
     }
     setPlayerState(playerStateRef.current);
-    setBotState(botStateRef.current);
+    setOpponentState(opponentStateRef.current);
 
     // Reset selection UI
     timeLeftRef.current = TURN_DURATION_S;
@@ -108,35 +117,68 @@ export default function BotCanvas({ loadout, build, onBack }) {
       clearInterval(interval);
 
       const playerLocked = forcedGestureRef.current ?? lastGestureRef.current;
-      const botLocked    = botLockedGestureRef.current;
+      const playerSpeed  = Math.max(0, (playerStateRef.current.spd || 1) + (playerStateRef.current.speedMod || 0));
       forcedGestureRef.current = null;
 
-      const playerSpeed = Math.max(0, (playerStateRef.current.spd || 1) + (playerStateRef.current.speedMod || 0));
-      const botSpeed    = Math.max(0, (botStateRef.current.spd    || 1) + (botStateRef.current.speedMod    || 0));
-      const result = resolveOrderedTurns(
-        playerStateRef.current, playerLocked, playerSpeed,
-        botStateRef.current,    botLocked,    botSpeed
-      );
-      pendingResolutionRef.current = result;
+      // Emit our gesture to the server
+      mp.emitGesture(playerLocked, playerSpeed);
 
-      playerStateRef.current = result.playerIntermediate;
-      botStateRef.current    = result.botIntermediate;
-      setPlayerState(result.playerIntermediate);
-      setBotState(result.botIntermediate);
+      // Wait for opponent gesture (server sends turn_resolved with both)
+      const resolveTimeout = setTimeout(() => {
+        // Timeout fallback: treat opponent as rested
+        if (!mp.turnResultRef.current) {
+          mp.turnResultRef.current = playerId === 'p1'
+            ? { p1: { gesture: playerLocked, speed: playerSpeed }, p2: { gesture: null, speed: 1 } }
+            : { p1: { gesture: null, speed: 1 }, p2: { gesture: playerLocked, speed: playerSpeed } };
+        }
+        doResolve(playerLocked, playerSpeed);
+      }, OPPONENT_TIMEOUT_MS);
 
-      if (result.playerIntermediate.hp <= 0 || result.botIntermediate.hp <= 0) {
-        pendingResolutionRef.current.gameOverResult =
-          result.playerIntermediate.hp <= 0 ? 'loss' : 'win';
-      }
-
-      setResolveMessage(buildLabel(result.firstMoverIsPlayer ? 'YOU' : 'BOT', result.firstGesture, result.firstMessage));
-      const firstEffect = getEffectComponent(result.firstEffectKey, result.firstGesture);
-      setActiveEffect(result.firstMoverIsPlayer && firstEffect ? () => firstEffect : null);
-      setGamePhase('resolving_first');
+      mp.setOnTurnResolved(() => {
+        clearTimeout(resolveTimeout);
+        doResolve(playerLocked, playerSpeed);
+      });
     }, 1000);
 
     return () => clearInterval(interval);
   }, [gamePhase, gameOver]);
+
+  function doResolve(playerLocked, playerSpeed) {
+    const result = mp.turnResultRef.current;
+    mp.turnResultRef.current = null;
+    mp.setOnTurnResolved(null);
+
+    if (!result) return;
+
+    // Map p1/p2 to player/opponent based on our playerId
+    const myResult  = result[playerId];
+    const oppId     = playerId === 'p1' ? 'p2' : 'p1';
+    const oppResult = result[oppId];
+
+    const oppLocked = oppResult.gesture;
+    const oppSpeed  = Math.max(0, (opponentStateRef.current.spd || 1) + (opponentStateRef.current.speedMod || 0));
+
+    const resolved = resolveOrderedTurns(
+      playerStateRef.current,   myResult.gesture ?? playerLocked,  playerSpeed,
+      opponentStateRef.current, oppLocked,                          oppSpeed
+    );
+    pendingResolutionRef.current = resolved;
+
+    playerStateRef.current   = resolved.playerIntermediate;
+    opponentStateRef.current = resolved.botIntermediate;
+    setPlayerState(resolved.playerIntermediate);
+    setOpponentState(resolved.botIntermediate);
+
+    if (resolved.playerIntermediate.hp <= 0 || resolved.botIntermediate.hp <= 0) {
+      pendingResolutionRef.current.gameOverResult =
+        resolved.playerIntermediate.hp <= 0 ? 'loss' : 'win';
+    }
+
+    setResolveMessage(buildLabel(resolved.firstMoverIsPlayer ? 'YOU' : 'OPP', resolved.firstGesture, resolved.firstMessage));
+    const firstEffect = getEffectComponent(resolved.firstEffectKey, resolved.firstGesture);
+    setActiveEffect(resolved.firstMoverIsPlayer && firstEffect ? () => firstEffect : null);
+    setGamePhase('resolving_first');
+  }
 
   // ── resolving_first → resolving_second ────────────────────────────────────
   useEffect(() => {
@@ -145,16 +187,16 @@ export default function BotCanvas({ loadout, build, onBack }) {
     const timeout = setTimeout(() => {
       const r = pendingResolutionRef.current;
 
-      playerStateRef.current = r.playerFinal;
-      botStateRef.current    = r.botFinal;
+      playerStateRef.current   = r.playerFinal;
+      opponentStateRef.current = r.botFinal;
       setPlayerState(r.playerFinal);
-      setBotState(r.botFinal);
+      setOpponentState(r.botFinal);
 
       const go = r.gameOverResult ??
         (r.playerFinal.hp <= 0 ? 'loss' : r.botFinal.hp <= 0 ? 'win' : null);
       if (go) setGameOver(go);
 
-      setResolveMessage(buildLabel(!r.firstMoverIsPlayer ? 'YOU' : 'BOT', r.secondGesture, r.secondMessage));
+      setResolveMessage(buildLabel(!r.firstMoverIsPlayer ? 'YOU' : 'OPP', r.secondGesture, r.secondMessage));
       const secondEffect = getEffectComponent(r.secondEffectKey, r.secondGesture);
       setActiveEffect(!r.firstMoverIsPlayer && secondEffect ? () => secondEffect : null);
       setGamePhase('resolving_second');
@@ -190,10 +232,11 @@ export default function BotCanvas({ loadout, build, onBack }) {
       loadout={loadout}
       currentGesture={currentGesture}
       activeEffect={activeEffect}
-      opponentState={botState}
-      opponentLoadout={BOT_LOADOUT}
-      opponentLabel="BOT"
-      opponentIcon="🤖"
+      opponentState={opponentState}
+      opponentLoadout={opponentLoadout}
+      opponentLabel="OPP"
+      opponentIcon="👤"
+      opponentVideoRef={opponentStream ? opponentVideoRef : null}
       turnKey={turnKey}
       confirmedGesture={confirmedGesture}
       resolveMessage={resolveMessage}

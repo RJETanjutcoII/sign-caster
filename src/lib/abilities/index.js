@@ -13,6 +13,9 @@ import instant_transmission from './support/instant_transmission.jsx';
 import thumbs_up          from './support/thumbs_up.jsx';
 import web_shot           from './support/web_shot.jsx';
 import double_v           from './support/double_v.jsx';
+import iron_wall          from './support/iron_wall.jsx';
+import power_up           from './support/power_up.jsx';
+import expose             from './support/expose.jsx';
 
 import sharingan          from './augmentation/sharingan.jsx';
 import sacred_ground      from './ultimate/sacred_ground.jsx';
@@ -30,6 +33,9 @@ export const ABILITIES = {
   thumbs_up,
   web_shot,
   double_v,
+  iron_wall,
+  power_up,
+  expose,
   sharingan,
   sacred_ground,
 };

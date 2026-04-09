@@ -89,7 +89,7 @@ wss.on('connection', (ws) => {
       // Once both gestures are in, relay both and reset
       if (room.gestures.p1 && room.gestures.p2) {
         clearTimeout(room.gestureTimer);
-        const payload = { p1: room.gestures.p1, p2: room.gestures.p2 };
+        const payload = { p1: room.gestures.p1, p2: room.gestures.p2, resolveAt: Date.now() + 300 };
         broadcast(room, 'turn_resolved', payload);
         room.gestures = {};
         return;
@@ -100,7 +100,7 @@ wss.on('connection', (ws) => {
       room.gestureTimer = setTimeout(() => {
         const missing = room.gestures.p1 ? 'p2' : 'p1';
         room.gestures[missing] = { gesture: null, speed: 1 };
-        const payload = { p1: room.gestures.p1, p2: room.gestures.p2 };
+        const payload = { p1: room.gestures.p1, p2: room.gestures.p2, resolveAt: Date.now() + 300 };
         broadcast(room, 'turn_resolved', payload);
         room.gestures = {};
       }, 3000);

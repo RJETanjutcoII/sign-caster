@@ -37,7 +37,7 @@ export function useMultiplayer() {
       if (msg.type === 'opponent_joined')      { setConnected(true); }
       if (msg.type === 'opponent_handshake')   { setOpponentHandshake({ loadout: new Set(msg.loadout), build: msg.build }); }
       if (msg.type === 'turn_resolved') {
-        turnResultRef.current = { p1: msg.p1, p2: msg.p2 };
+        turnResultRef.current = { p1: msg.p1, p2: msg.p2, resolveAt: msg.resolveAt ?? Date.now() };
         onTurnResolvedRef.current?.();
       }
       if (msg.type === 'opponent_disconnected') { setDisconnected(true); }

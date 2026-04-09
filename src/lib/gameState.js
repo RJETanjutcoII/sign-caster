@@ -245,7 +245,8 @@ const EMPTY_OUTGOING = { damage: 0, stunTurns: 0, noRestBonus: false, dot: null 
  */
 export function resolveOrderedTurns(
   playerState, playerGesture, playerSpeed,
-  botState,    botGesture,    botSpeed
+  botState,    botGesture,    botSpeed,
+  coinFlip = Math.random() < 0.5
 ) {
   // Stunned movers always go last (priority -1)
   const playerPriority = playerGesture === 'stunned' ? -1 : (ABILITIES[playerGesture]?.priority ?? 0);
@@ -254,7 +255,7 @@ export function resolveOrderedTurns(
   let playerGoesFirst;
   if      (playerPriority !== botPriority) playerGoesFirst = playerPriority > botPriority;
   else if (playerSpeed    !== botSpeed)    playerGoesFirst = playerSpeed    > botSpeed;
-  else                                     playerGoesFirst = Math.random() < 0.5;
+  else                                     playerGoesFirst = coinFlip;
 
   // Both resolve independently (costs paid, self-effects applied)
   const { newState: playerResolved, outgoing: playerOut, effectKey: pEK, message: pMsg } =

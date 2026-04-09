@@ -158,26 +158,39 @@ export default function PvPCanvas({ loadout, build, opponentLoadout, opponentBui
     const oppLocked = oppResult.gesture;
     const oppSpeed  = Math.max(0, (opponentStateRef.current.spd || 1) + (opponentStateRef.current.speedMod || 0));
 
+    // Tiebreak: resolveAt parity is identical on both clients — no explicit coinFlip needed
+    // Even resolveAt = p1 goes first (from p1's perspective); odd = p2 goes first
+    const p1GoesFirst = (result.resolveAt ?? 0) % 2 === 0;
+    const coinFlip = playerId === 'p1' ? p1GoesFirst : !p1GoesFirst;
+
     const resolved = resolveOrderedTurns(
       playerStateRef.current,   myResult.gesture ?? playerLocked,  playerSpeed,
-      opponentStateRef.current, oppLocked,                          oppSpeed
+      opponentStateRef.current, oppLocked,                          oppSpeed,
+      coinFlip
     );
     pendingResolutionRef.current = resolved;
 
+    // Update refs immediately — needed for correct logic on the next turn
     playerStateRef.current   = resolved.playerIntermediate;
     opponentStateRef.current = resolved.botIntermediate;
-    setPlayerState(resolved.playerIntermediate);
-    setOpponentState(resolved.botIntermediate);
 
     if (resolved.playerIntermediate.hp <= 0 || resolved.botIntermediate.hp <= 0) {
       pendingResolutionRef.current.gameOverResult =
         resolved.playerIntermediate.hp <= 0 ? 'loss' : 'win';
     }
 
-    setResolveMessage(buildLabel(resolved.firstMoverIsPlayer ? 'YOU' : 'OPP', resolved.firstGesture, resolved.firstMessage));
-    const firstEffect = getEffectComponent(resolved.firstEffectKey, resolved.firstGesture);
-    setActiveEffect(resolved.firstMoverIsPlayer && firstEffect ? () => firstEffect : null);
-    setGamePhase('resolving_first');
+    const firstMessage = buildLabel(resolved.firstMoverIsPlayer ? 'YOU' : 'OPP', resolved.firstGesture, resolved.firstMessage);
+    const firstEffect  = getEffectComponent(resolved.firstEffectKey, resolved.firstGesture);
+
+    // Delay all UI state until resolveAt so both clients enter resolving_first simultaneously
+    const delay = Math.max(0, (result.resolveAt ?? Date.now()) - Date.now());
+    setTimeout(() => {
+      setPlayerState(resolved.playerIntermediate);
+      setOpponentState(resolved.botIntermediate);
+      setResolveMessage(firstMessage);
+      setActiveEffect(resolved.firstMoverIsPlayer && firstEffect ? () => firstEffect : null);
+      setGamePhase('resolving_first');
+    }, delay);
   }
 
   // ── resolving_first → resolving_second ────────────────────────────────────

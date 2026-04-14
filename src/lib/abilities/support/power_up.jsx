@@ -55,5 +55,9 @@ export default {
       && hands[0][0].y < 0.45 && hands[1][0].y < 0.45;
   },
   Effect,
+  videoEffects: {
+    caster: { type: 'overlay', src: '/effects/power_up/caster.mp4' },
+    target: null,
+  },
   resolve() { return { atkBuff: { delta: 8, turnsLeft: 2 } }; },
 };

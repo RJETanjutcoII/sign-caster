@@ -80,5 +80,9 @@ export default {
   domainTick() { return { manaRegen: 3 }; },
   Effect,
   LoopEffect,
+  videoEffects: {
+    caster: { type: 'background', src: '/effects/sacred_ground/bg.mp4', loop: true },
+    target: { type: 'background', src: '/effects/sacred_ground/bg.mp4', loop: true },
+  },
   resolve() { return {}; },
 };

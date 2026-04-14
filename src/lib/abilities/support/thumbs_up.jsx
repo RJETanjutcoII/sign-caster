@@ -35,5 +35,9 @@ export default {
     return lm[4].y < lm[0].y - handSize * 0.9;
   },
   Effect,
+  videoEffects: {
+    caster: { type: 'overlay', src: '/effects/heal/caster.mp4' },
+    target: null,
+  },
   resolve() { return { healSelf: 15 }; },
 };

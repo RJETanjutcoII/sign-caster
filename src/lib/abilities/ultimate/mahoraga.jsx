@@ -62,5 +62,9 @@ export default {
     return isFist(lm0) && isFist(lm1) && dist(lm0[0], lm1[0]) < 0.55;
   },
   Effect,
+  videoEffects: {
+    caster: { type: 'overlay', src: '/effects/mahoraga/caster.mp4' },
+    target: { type: 'overlay', src: '/effects/mahoraga/target.mp4' },
+  },
   resolve() { return {}; },
 };

@@ -86,5 +86,9 @@ export default {
   domainTick() { return { stunOpponent: 1 }; },
   Effect,
   LoopEffect,
+  videoEffects: {
+    caster: { type: 'background', src: '/effects/unlimited_void/bg.mp4', loop: true },
+    target: { type: 'background', src: '/effects/unlimited_void/bg.mp4', loop: true },
+  },
   resolve() { return { stunTurns: 1 }; },
 };

@@ -6,6 +6,7 @@ import { makeState, applyStartOfTurn, applyIncoming, resolveOrderedTurns } from 
 import { BOT_LOADOUT, BOT_BUILD, chooseBotGesture } from '@/lib/bot';
 import { useGestureEngine } from '@/lib/useGestureEngine';
 import { getEffectComponent, buildLabel } from '@/lib/effectHelper';
+import { useVideoEffects } from '@/lib/useVideoEffects';
 
 const TURN_DURATION_S = 5;
 const RESOLVE_SUB_S   = 2;
@@ -50,7 +51,7 @@ export default function BotCanvas({ loadout, build, onBack }) {
   useEffect(() => { showLandmarksRef.current = showLandmarks; }, [showLandmarks]);
 
   // ── Gesture engine ────────────────────────────────────────────────────────
-  const { status, currentGesture, confirmedGestureRef, lastGestureRef } = useGestureEngine({
+  const { status, currentGesture, confirmedGestureRef, lastGestureRef, compositeCanvasRef, setActiveBackground, fps } = useGestureEngine({
     loadout,
     videoRef,
     canvasRef,
@@ -62,6 +63,9 @@ export default function BotCanvas({ loadout, build, onBack }) {
     onConfirm:        (g) => setConfirmedGesture(g),
     onCancel:         ()  => setConfirmedGesture(null),
   });
+
+  const { playerVideoEffect, backgroundActive, applyVideoEffect, clearVideoEffect } =
+    useVideoEffects({ setActiveBackground, activeDomain: playerState?.activeDomain });
 
   // ── Turn timer ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -132,6 +136,7 @@ export default function BotCanvas({ loadout, build, onBack }) {
       setResolveMessage(buildLabel(result.firstMoverIsPlayer ? 'YOU' : 'BOT', result.firstGesture, result.firstMessage));
       const firstEffect = getEffectComponent(result.firstEffectKey, result.firstGesture);
       setActiveEffect(result.firstMoverIsPlayer && firstEffect ? () => firstEffect : null);
+      applyVideoEffect(result.firstGesture, result.firstMoverIsPlayer);
       setGamePhase('resolving_first');
     }, 1000);
 
@@ -157,6 +162,7 @@ export default function BotCanvas({ loadout, build, onBack }) {
       setResolveMessage(buildLabel(!r.firstMoverIsPlayer ? 'YOU' : 'BOT', r.secondGesture, r.secondMessage));
       const secondEffect = getEffectComponent(r.secondEffectKey, r.secondGesture);
       setActiveEffect(!r.firstMoverIsPlayer && secondEffect ? () => secondEffect : null);
+      applyVideoEffect(r.secondGesture, !r.firstMoverIsPlayer);
       setGamePhase('resolving_second');
     }, RESOLVE_SUB_S * 1000);
 
@@ -169,6 +175,7 @@ export default function BotCanvas({ loadout, build, onBack }) {
 
     const timeout = setTimeout(() => {
       setActiveEffect(null);
+      clearVideoEffect();
       if (!gameOver) setGamePhase('selecting');
     }, RESOLVE_SUB_S * 1000);
 
@@ -190,6 +197,10 @@ export default function BotCanvas({ loadout, build, onBack }) {
       loadout={loadout}
       currentGesture={currentGesture}
       activeEffect={activeEffect}
+      playerVideoEffect={playerVideoEffect}
+      compositeCanvasRef={compositeCanvasRef}
+      backgroundActive={backgroundActive}
+      fps={fps}
       opponentState={botState}
       opponentLoadout={BOT_LOADOUT}
       opponentLabel="BOT"

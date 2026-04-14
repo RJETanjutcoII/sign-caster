@@ -61,5 +61,9 @@ export default {
     return isPeaceSign(lm0) && isPeaceSign(lm1) && dist(lm0[0], lm1[0]) < 0.8;
   },
   Effect,
+  videoEffects: {
+    caster: { type: 'overlay', src: '/effects/strike/caster.mp4' },
+    target: null,
+  },
   resolve() { return { speedBoost: 1 }; },
 };

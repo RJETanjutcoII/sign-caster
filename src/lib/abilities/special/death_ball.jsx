@@ -36,5 +36,9 @@ export default {
     return dy > dx;
   },
   Effect,
+  videoEffects: {
+    caster: { type: 'overlay', src: '/effects/death_ball/caster.mp4' },
+    target: { type: 'overlay', src: '/effects/death_ball/target.mp4' },
+  },
   resolve() { return { damage: 30 }; },
 };

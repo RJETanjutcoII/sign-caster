@@ -114,5 +114,9 @@ export default {
   domainTick() { return { damageOpponent: 15 }; },
   Effect,
   LoopEffect,
+  videoEffects: {
+    caster: { type: 'background', src: '/effects/malevolent_shrine/bg.mp4', loop: true },
+    target: { type: 'background', src: '/effects/malevolent_shrine/bg.mp4', loop: true },
+  },
   resolve() { return {}; },
 };

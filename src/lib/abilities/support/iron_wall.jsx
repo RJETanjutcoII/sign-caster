@@ -54,5 +54,9 @@ export default {
     return hands[leftIdx][0].x < hands[rightIdx][0].x;
   },
   Effect,
+  videoEffects: {
+    caster: { type: 'overlay', src: '/effects/iron_wall/caster.mp4' },
+    target: null,
+  },
   resolve() { return { defBuff: { delta: 9, turnsLeft: 2 } }; },
 };

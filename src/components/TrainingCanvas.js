@@ -12,6 +12,7 @@ import dynamic from 'next/dynamic';
 const DomainLayer = dynamic(() => import('./DomainLayer'), { ssr: false });
 import { makeState, applyStartOfTurn, resolveTurn } from '@/lib/gameState';
 import { useGestureEngine } from '@/lib/useGestureEngine';
+import { useVideoEffects } from '@/lib/useVideoEffects';
 
 const TURN_DURATION_S    = 5;   // gesture selection window
 const RESOLVE_DURATION_S = 4;   // time to display the effect before next round
@@ -28,7 +29,6 @@ export default function TrainingCanvas({ loadout, build, onBack }) {
   const [lockedGesture,   setLockedGesture]   = useState(null);
   const [activeEffect,    setActiveEffect]    = useState(null);
   const [resolveMessage,  setResolveMessage]  = useState(null);
-
   const gamePhaseRef    = useRef('warmup');
   const forcedGestureRef = useRef(null);
 
@@ -45,7 +45,8 @@ export default function TrainingCanvas({ loadout, build, onBack }) {
   useEffect(() => { showLandmarksRef.current = showLandmarks; }, [showLandmarks]);
 
   // ── Gesture engine ────────────────────────────────────────────────────────
-  const { status, currentGesture, confirmedGestureRef, lastGestureRef } = useGestureEngine({
+  const { status, currentGesture, confirmedGestureRef, lastGestureRef,
+          compositeCanvasRef, setActiveBackground, fps } = useGestureEngine({
     loadout,
     videoRef,
     canvasRef,
@@ -56,6 +57,9 @@ export default function TrainingCanvas({ loadout, build, onBack }) {
     onConfirm:        (g) => setConfirmedGesture(g),
     onCancel:         ()  => setConfirmedGesture(null),
   });
+
+  const { playerVideoEffect, backgroundActive, applyVideoEffect, clearVideoEffect } =
+    useVideoEffects({ setActiveBackground, activeDomain: playerState?.activeDomain });
 
   // ── Turn timer ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -108,6 +112,7 @@ export default function TrainingCanvas({ loadout, build, onBack }) {
         else if (locked === 'stunned')                             EffectComponent = StunEffect;
         else if (displayLocked)                                    EffectComponent = ABILITIES[displayLocked]?.Effect ?? null;
         setActiveEffect(() => EffectComponent);
+        applyVideoEffect(displayLocked, true);
       }
     }, 1000);
 
@@ -119,6 +124,7 @@ export default function TrainingCanvas({ loadout, build, onBack }) {
 
     const timeout = setTimeout(() => {
       setActiveEffect(null);
+      clearVideoEffect();
       setLockedGesture(null);
       setGamePhase('selecting');
     }, RESOLVE_DURATION_S * 1000);
@@ -141,10 +147,27 @@ export default function TrainingCanvas({ loadout, build, onBack }) {
       <video
         ref={videoRef}
         className={showLandmarks ? 'game-video' : 'game-video game-video--visible'}
+        style={backgroundActive ? { display: 'none' } : {}}
         playsInline
         muted
       />
+      <canvas
+        ref={compositeCanvasRef}
+        className="game-video game-video--visible"
+        style={backgroundActive ? {} : { display: 'none' }}
+      />
       <canvas ref={canvasRef} className="game-canvas" style={showLandmarks ? {} : { display: 'none' }} />
+      {playerVideoEffect?.type === 'overlay' && (
+        <video
+          key={playerVideoEffect.src}
+          className="camera-effect-overlay"
+          src={playerVideoEffect.src}
+          autoPlay
+          muted
+          loop={playerVideoEffect.loop ?? false}
+          onError={() => {}}
+        />
+      )}
 
       <DomainLayer activeDomain={playerState.activeDomain} />
 
@@ -163,6 +186,7 @@ export default function TrainingCanvas({ loadout, build, onBack }) {
       {/* Debug panel — top right */}
       <div className="debug-panel">
         <span className="debug-label">DEBUG</span>
+        <span className="debug-fps">{fps} fps</span>
         <button className="debug-btn" onClick={() => {
           const s = { ...playerStateRef.current, mana: playerStateRef.current.maxMana };
           playerStateRef.current = s;

@@ -51,5 +51,9 @@ export default {
     return isOpenPalm(lm0) && isOpenPalm(lm1) && dist(lm0[0], lm1[0]) < 0.35;
   },
   Effect,
+  videoEffects: {
+    caster: { type: 'overlay', src: '/effects/kamehameha/caster.mp4' },
+    target: { type: 'overlay', src: '/effects/kamehameha/target.mp4' },
+  },
   resolve() { return { damage: 30 }; },
 };

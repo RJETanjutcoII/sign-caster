@@ -70,5 +70,9 @@ export default {
     return isFingerGun(hands[0]) && isFingerGun(hands[1]);
   },
   Effect,
+  videoEffects: {
+    caster: { type: 'overlay', src: '/effects/expose/caster.mp4' },
+    target: { type: 'overlay', src: '/effects/expose/target.mp4' },
+  },
   resolve() { return { defDebuff: { amount: 6, turns: 2 } }; },
 };

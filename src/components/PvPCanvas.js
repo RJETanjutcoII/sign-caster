@@ -6,6 +6,7 @@ import { makeState, applyStartOfTurn, applyIncoming, resolveOrderedTurns } from 
 import { useGestureEngine } from '@/lib/useGestureEngine';
 import { useWebRTC } from '@/lib/useWebRTC';
 import { getEffectComponent, buildLabel } from '@/lib/effectHelper';
+import { useVideoEffects } from '@/lib/useVideoEffects';
 
 const TURN_DURATION_S = 5;
 const RESOLVE_SUB_S   = 2;
@@ -48,7 +49,7 @@ export default function PvPCanvas({ loadout, build, opponentLoadout, opponentBui
   useEffect(() => { showLandmarksRef.current = showLandmarks; }, [showLandmarks]);
 
   // ── Gesture engine ────────────────────────────────────────────────────────
-  const { status, currentGesture, confirmedGestureRef, lastGestureRef } = useGestureEngine({
+  const { status, currentGesture, confirmedGestureRef, lastGestureRef, compositeCanvasRef, setActiveBackground, fps } = useGestureEngine({
     loadout,
     videoRef,
     canvasRef,
@@ -60,6 +61,15 @@ export default function PvPCanvas({ loadout, build, opponentLoadout, opponentBui
     onConfirm:        (g) => setConfirmedGesture(g),
     onCancel:         ()  => setConfirmedGesture(null),
   });
+
+  const { playerVideoEffect, backgroundActive, applyVideoEffect, clearVideoEffect } =
+    useVideoEffects({ setActiveBackground, activeDomain: playerState?.activeDomain });
+
+  // Stable refs for applyVideoEffect/clearVideoEffect — prevents stale captures in doResolve closure
+  const applyVideoEffectRef = useRef(applyVideoEffect);
+  applyVideoEffectRef.current = applyVideoEffect;
+  const clearVideoEffectRef = useRef(clearVideoEffect);
+  clearVideoEffectRef.current = clearVideoEffect;
 
   // ── Opponent camera (WebRTC) ──────────────────────────────────────────────
   const opponentVideoRef = useRef(null);
@@ -189,6 +199,7 @@ export default function PvPCanvas({ loadout, build, opponentLoadout, opponentBui
       setOpponentState(resolved.botIntermediate);
       setResolveMessage(firstMessage);
       setActiveEffect(resolved.firstMoverIsPlayer && firstEffect ? () => firstEffect : null);
+      applyVideoEffectRef.current(resolved.firstGesture, resolved.firstMoverIsPlayer);
       setGamePhase('resolving_first');
     }, delay);
   }
@@ -212,6 +223,7 @@ export default function PvPCanvas({ loadout, build, opponentLoadout, opponentBui
       setResolveMessage(buildLabel(!r.firstMoverIsPlayer ? 'YOU' : 'OPP', r.secondGesture, r.secondMessage));
       const secondEffect = getEffectComponent(r.secondEffectKey, r.secondGesture);
       setActiveEffect(!r.firstMoverIsPlayer && secondEffect ? () => secondEffect : null);
+      applyVideoEffect(r.secondGesture, !r.firstMoverIsPlayer);
       setGamePhase('resolving_second');
     }, RESOLVE_SUB_S * 1000);
 
@@ -224,6 +236,7 @@ export default function PvPCanvas({ loadout, build, opponentLoadout, opponentBui
 
     const timeout = setTimeout(() => {
       setActiveEffect(null);
+      clearVideoEffectRef.current();
       if (!gameOver) setGamePhase('selecting');
     }, RESOLVE_SUB_S * 1000);
 
@@ -245,6 +258,10 @@ export default function PvPCanvas({ loadout, build, opponentLoadout, opponentBui
       loadout={loadout}
       currentGesture={currentGesture}
       activeEffect={activeEffect}
+      playerVideoEffect={playerVideoEffect}
+      compositeCanvasRef={compositeCanvasRef}
+      backgroundActive={backgroundActive}
+      fps={fps}
       opponentState={opponentState}
       opponentLoadout={opponentLoadout}
       opponentLabel="OPP"

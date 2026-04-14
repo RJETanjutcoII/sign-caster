@@ -56,5 +56,9 @@ export default {
     return (leftClosed && rightOpen) || (rightClosed && leftOpen);
   },
   Effect,
+  videoEffects: {
+    caster: { type: 'overlay', src: '/effects/sharingan/caster.mp4' },
+    target: { type: 'overlay', src: '/effects/sharingan/target.mp4' },
+  },
   resolve() { return { stunTurns: 2, noRestBonus: true }; },
 };

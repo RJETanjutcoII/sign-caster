@@ -17,6 +17,8 @@ export default function MultiUI({
   // player pane
   videoRef, canvasRef, showLandmarks, onToggleLandmarks,
   playerState, loadout, currentGesture, activeEffect,
+  // video effects
+  playerVideoEffect, compositeCanvasRef, backgroundActive, fps,
   // opponent pane
   opponentState, opponentLoadout, opponentLabel, opponentIcon, opponentVideoRef,
   // timer
@@ -33,13 +35,36 @@ export default function MultiUI({
 
       {/* ── Left pane — player ── */}
       <div className="battle-pane battle-pane--player">
+        {/* Raw camera feed — hidden when background replacement is active */}
         <video
           ref={videoRef}
           className={showLandmarks ? 'game-video' : 'game-video game-video--visible'}
+          style={backgroundActive ? { display: 'none' } : {}}
           playsInline
           muted
         />
+        {/* Composited canvas (person over background MP4) — shown during domains */}
+        {compositeCanvasRef && (
+          <canvas
+            ref={compositeCanvasRef}
+            className="game-video game-video--visible"
+            style={backgroundActive ? {} : { display: 'none' }}
+          />
+        )}
         <canvas ref={canvasRef} className="game-canvas" style={showLandmarks ? {} : { display: 'none' }} />
+
+        {/* Overlay video effect (plays in front of the camera) */}
+        {playerVideoEffect?.type === 'overlay' && (
+          <video
+            key={playerVideoEffect.src}
+            className="camera-effect-overlay"
+            src={playerVideoEffect.src}
+            autoPlay
+            muted
+            loop={playerVideoEffect.loop ?? false}
+            onError={() => {}}
+          />
+        )}
 
         <DomainLayer activeDomain={playerState?.activeDomain} />
         {activeEffect && (() => { const E = activeEffect; return <E />; })()}
@@ -59,6 +84,7 @@ export default function MultiUI({
         <button className="landmark-toggle-btn" onClick={onToggleLandmarks}>
           {showLandmarks ? '📷 Camera' : '✋ Landmarks'}
         </button>
+        {fps > 0 && <div className="fps-badge">{fps} fps</div>}
       </div>
 
       {/* ── Right pane — opponent ── */}

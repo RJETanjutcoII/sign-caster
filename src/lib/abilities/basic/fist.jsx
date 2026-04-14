@@ -35,5 +35,9 @@ export default {
     return !thumbHighAboveWrist;
   },
   Effect,
+  videoEffects: {
+    caster: { type: 'overlay', src: '/effects/strike/caster.mp4' },
+    target: { type: 'overlay', src: '/effects/strike/target.mp4' },
+  },
   resolve() { return { damage: 15 }; },
 };

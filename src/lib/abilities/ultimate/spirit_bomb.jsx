@@ -127,5 +127,9 @@ export default {
   ChargeEffect,
   LoopEffect,
   Effect,
+  videoEffects: {
+    caster: { type: 'overlay', src: '/effects/spirit_bomb/caster.mp4' },
+    target: { type: 'overlay', src: '/effects/spirit_bomb/target.mp4' },
+  },
   resolve() { return { damage: 75 }; },
 };

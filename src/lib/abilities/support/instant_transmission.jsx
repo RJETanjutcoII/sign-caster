@@ -42,5 +42,9 @@ export default {
     return tipToFace < 0.30;
   },
   Effect,
+  videoEffects: {
+    caster: { type: 'overlay', src: '/effects/instant_transmission/caster.mp4' },
+    target: null,
+  },
   resolve() { return { nullifySelf: true }; },
 };

@@ -65,5 +65,9 @@ export default {
     return indexExtended && pinkyExtended && middleCurled && ringCurled && thumbOut;
   },
   Effect,
+  videoEffects: {
+    caster: { type: 'overlay', src: '/effects/web_shot/caster.mp4' },
+    target: { type: 'overlay', src: '/effects/web_shot/target.mp4' },
+  },
   resolve() { return { speedReduction: 1 }; },
 };

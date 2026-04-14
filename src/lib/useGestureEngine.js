@@ -96,19 +96,47 @@ export function useGestureEngine({
 }) {
   const [status,         setStatus]         = useState('Initializing...');
   const [currentGesture, setCurrentGesture] = useState(null);
+  const [fps,            setFps]            = useState(0);
 
   // Refs the hook owns internally
   const landmarkerRef          = useRef(null);
   const faceLandmarkerRef      = useRef(null);
-  const rafRef                 = useRef(null);  // holds setTimeout id
+  const workerRef              = useRef(null);   // segmentation Web Worker
+  const segPendingRef          = useRef(false);  // true while worker is processing a frame
+  const rafRef                 = useRef(null);  // holds setTimeout id for render loop
   const zoomCanvasRef          = useRef(null);
   const zoomCtxRef             = useRef(null);  // cached 2d context for zoom canvas
   const frameCountRef          = useRef(0);
   const lastFaceTsRef          = useRef(0);
+  const fpsTimestampsRef       = useRef([]); // rolling window of last 20 frame timestamps
   const cachedFaceLandmarksRef = useRef(null);
   const gestureHoldRef         = useRef({ gesture: null, since: 0 });
   const warmupCountRef         = useRef(0);
   const currentGestureRef      = useRef(null);
+
+  // Background replacement refs
+  const compositeCanvasRef  = useRef(null);
+  const compositeCtxRef     = useRef(null);
+  const tempCanvasRef       = useRef(null);
+  const tempCtxRef          = useRef(null);
+  const maskCanvasRef            = useRef(null);
+  const maskCtxRef               = useRef(null);
+  const bgVideoRef          = useRef(null);       // hidden <video> for the background MP4
+  const activeBackgroundRef = useRef(null);       // { src, loop } | null
+
+  function setActiveBackground(effect) {
+    activeBackgroundRef.current = effect ?? null;
+    const bv = bgVideoRef.current;
+    if (!bv) return;
+    if (!effect) {
+      bv.pause();
+      bv.src = '';
+    } else if (bv.src !== window.location.origin + effect.src) {
+      bv.src    = effect.src;
+      bv.loop   = effect.loop ?? false;
+      bv.play().catch(() => {});
+    }
+  }
 
   // Exposed refs (read by turn-timer logic outside this hook)
   const confirmedGestureRef = useRef(null);
@@ -200,6 +228,21 @@ export function useGestureEngine({
       await new Promise(res => (video.onloadedmetadata = res));
       video.play();
 
+      // ── Camera FPS counter (requestVideoFrameCallback) ────────────────────
+      // Fires once per actual camera frame delivered — true camera fps, not loop fps.
+      if ('requestVideoFrameCallback' in video) {
+        const onVideoFrame = (now) => {
+          if (stopped) return;
+          const ts = fpsTimestampsRef.current;
+          ts.push(now);
+          if (ts.length > 20) ts.shift();
+          if (ts.length >= 2)
+            setFps(Math.round((ts.length - 1) / (ts[ts.length - 1] - ts[0]) * 1000));
+          video.requestVideoFrameCallback(onVideoFrame);
+        };
+        video.requestVideoFrameCallback(onVideoFrame);
+      }
+
       if (zoom) {
         const zc = document.createElement('canvas');
         zc.width  = video.videoWidth;
@@ -208,10 +251,52 @@ export function useGestureEngine({
         zoomCtxRef.current    = zc.getContext('2d');
       }
 
+      // Off-DOM background video element for compositing
+      const bgVideo = document.createElement('video');
+      bgVideo.autoplay  = false;
+      bgVideo.muted     = true;
+      bgVideo.playsInline = true;
+      bgVideoRef.current = bgVideo;
+
       setStatus(null);
+
+      // ── Segmentation worker ───────────────────────────────────────────────
+      // Segmentation (50–200ms synchronous call) runs in a Web Worker so the
+      // render loop never blocks. Main thread sends ImageBitmap frames
+      // (zero-copy transfer); worker returns RGBA ArrayBuffer alpha masks.
+      const worker = new Worker(new URL('./segmentWorker.js', import.meta.url));
+      workerRef.current = worker;
+
+      worker.onmessage = ({ data }) => {
+        if (data.type !== 'mask') return;
+        const { rgba, width: mw, height: mh } = data;
+
+        const imgData = new ImageData(new Uint8ClampedArray(rgba), mw, mh);
+
+        const mc = maskCanvasRef.current ??= document.createElement('canvas');
+        if (mc.width !== mw || mc.height !== mh) { mc.width = mw; mc.height = mh; maskCtxRef.current = null; }
+        const mCtx = maskCtxRef.current ??= mc.getContext('2d');
+        mCtx.putImageData(imgData, 0, 0);
+
+
+        segPendingRef.current = false;
+      };
+
+      function triggerSeg() {
+        if (segPendingRef.current || !activeBackgroundRef.current || video.readyState < 2) return;
+        segPendingRef.current = true;
+        createImageBitmap(video, { resizeWidth: 256, resizeHeight: 256, resizeQuality: 'pixelated' }).then(bitmap => {
+          if (stopped || !workerRef.current) { bitmap.close(); segPendingRef.current = false; return; }
+          workerRef.current.postMessage(
+            { type: 'segment', bitmap, timestamp: performance.now(), width: 256, height: 256 },
+            [bitmap]
+          );
+        }).catch(() => { segPendingRef.current = false; });
+      }
 
       function loop() {
         if (stopped) return;
+
 
         const canvas = canvasRef.current;
         if (!canvas || !video) { rafRef.current = setTimeout(loop, 33); return; }
@@ -255,6 +340,37 @@ export function useGestureEngine({
           }
           rafRef.current = setTimeout(loop, 33);
           return;
+        }
+
+        // Background replacement compositing — render loop does NO segmentation
+        const bgEffect = activeBackgroundRef.current;
+        if (bgEffect && bgVideoRef.current?.readyState >= 2) {
+          triggerSeg(); // fires async, never blocks loop
+          const cc = compositeCanvasRef.current;
+          if (cc) {
+            if (cc.width !== w) cc.width = w;
+            if (cc.height !== h) cc.height = h;
+            const cCtx = compositeCtxRef.current ??= cc.getContext('2d');
+
+            cCtx.drawImage(bgVideoRef.current, 0, 0, w, h);
+
+            const mc = maskCanvasRef.current;
+            if (mc) {
+              // Mask available — composite person cutout over background
+              const tc = tempCanvasRef.current ??= document.createElement('canvas');
+              if (tc.width !== w || tc.height !== h) { tc.width = w; tc.height = h; tempCtxRef.current = null; }
+              const tCtx = tempCtxRef.current ??= tc.getContext('2d');
+              tCtx.clearRect(0, 0, w, h);
+              tCtx.drawImage(video, 0, 0, w, h);
+              tCtx.globalCompositeOperation = 'destination-in';
+              tCtx.drawImage(mc, 0, 0, w, h);
+              tCtx.globalCompositeOperation = 'source-over';
+              cCtx.drawImage(tc, 0, 0);
+            } else {
+              // No mask yet — show raw video over background as fallback
+              cCtx.drawImage(video, 0, 0, w, h);
+            }
+          }
         }
 
         // Landmark drawing (debug — when enabled)
@@ -337,8 +453,9 @@ export function useGestureEngine({
         videoRef.current.srcObject.getTracks().forEach(t => t.stop());
       landmarkerRef.current?.close();
       faceLandmarkerRef.current?.close();
+      workerRef.current?.terminate();
     };
   }, [loadout]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return { status, currentGesture, confirmedGestureRef, lastGestureRef };
+  return { status, currentGesture, confirmedGestureRef, lastGestureRef, compositeCanvasRef, setActiveBackground, fps };
 }

@@ -14,6 +14,14 @@ export function getEffectComponent(effectKey, gesture) {
   return g ? ABILITIES[g]?.Effect ?? null : null;
 }
 
+// Returns { type, src, loop? } | null for the local player's camera effect
+export function getVideoEffect(gesture, isCaster) {
+  if (!gesture || gesture === 'stunned') return null;
+  const effects = ABILITIES[gesture]?.videoEffects;
+  if (!effects) return null;
+  return isCaster ? effects.caster : effects.target;
+}
+
 export function buildLabel(who, gesture, message) {
   if (gesture === 'stunned') return `${who}: Stunned! Cannot move!`;
   if (message) return `${who}: ${message}`;

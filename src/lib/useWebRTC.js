@@ -11,9 +11,14 @@ const ICE_SERVERS = [{ urls: 'stun:stun.l.google.com:19302' }];
  * p2 = answerer
  *
  * Signaling is relayed through the existing WebSocket (mp.sendSignal / mp.setOnSignal).
+ *
+ * When backgroundActive is true, replaceTrack switches the outgoing stream to the
+ * compositeCanvas (Zoom-style background already composited in). When false, it switches
+ * back to the raw camera. No encoding overhead when no domain is active.
  */
-export function useWebRTC({ mp, playerId, localVideoRef, enabled }) {
-  const pcRef = useRef(null);
+export function useWebRTC({ mp, playerId, localVideoRef, compositeCanvasRef, backgroundActive, enabled }) {
+  const pcRef           = useRef(null);
+  const canvasStreamRef = useRef(null);
   const [opponentStream, setOpponentStream] = useState(null);
 
   useEffect(() => {
@@ -34,7 +39,7 @@ export function useWebRTC({ mp, playerId, localVideoRef, enabled }) {
       if (evt.candidate) mp.sendSignal({ type: 'ice', candidate: evt.candidate });
     };
 
-    // Add local camera tracks once available
+    // Add raw camera tracks only — compositeCanvas switching is done via replaceTrack
     function addLocalTracks() {
       const stream = localVideoRef?.current?.srcObject;
       if (!stream) return false;
@@ -107,8 +112,35 @@ export function useWebRTC({ mp, playerId, localVideoRef, enabled }) {
       pcRef.current = null;
       mp.setOnSignal(null);
       setOpponentStream(null);
+      canvasStreamRef.current?.getTracks().forEach(t => t.stop());
+      canvasStreamRef.current = null;
     };
   }, [enabled, playerId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Switch outgoing video track when background activates / deactivates.
+  // captureStream runs only while a domain is active — zero encoding overhead otherwise.
+  useEffect(() => {
+    const pc = pcRef.current;
+    if (!pc) return;
+    const videoSender = pc.getSenders().find(s => s.track?.kind === 'video');
+    if (!videoSender) return;
+
+    if (backgroundActive) {
+      const canvas = compositeCanvasRef?.current;
+      if (!canvas || canvas.width === 0 || canvas.height === 0) return;
+      const stream = canvas.captureStream(30);
+      canvasStreamRef.current = stream;
+      const track = stream.getVideoTracks()[0];
+      if (track) videoSender.replaceTrack(track).catch(() => {});
+    } else {
+      // Switch back to raw camera and free the canvas encoder
+      const rawStream = localVideoRef?.current?.srcObject;
+      const track = rawStream?.getVideoTracks()[0];
+      if (track) videoSender.replaceTrack(track).catch(() => {});
+      canvasStreamRef.current?.getTracks().forEach(t => t.stop());
+      canvasStreamRef.current = null;
+    }
+  }, [backgroundActive]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return { opponentStream };
 }

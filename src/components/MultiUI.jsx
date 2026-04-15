@@ -27,9 +27,6 @@ export default function MultiUI({
   opponentActiveDomain,
   // background video to show in the opponent pane (domain active)
   opponentBackground,
-  // opponent compositing (PvP only — Zoom-style background replacement)
-  opponentCompositeCanvasRef,
-  opponentBackgroundActive,
   // domain clash
   clashScores, clashRound, clashPromptGesture, clashWinner,
   clashPlayerDomain, clashOppDomain,
@@ -107,32 +104,18 @@ export default function MultiUI({
 
       {/* ── Right pane — opponent ── */}
       <div className="battle-pane battle-pane--opponent">
-        {/* Raw WebRTC feed — hidden when compositing is active */}
-        {opponentVideoRef && (
-          <video
-            ref={opponentVideoRef}
-            className="game-video game-video--visible game-video--opponent"
-            playsInline muted={false} autoPlay
-            style={opponentBackgroundActive ? { display: 'none' } : undefined}
-          />
-        )}
-        {/* Composited canvas — opponent person over domain background (PvP) */}
-        {opponentCompositeCanvasRef && (
-          <canvas
-            ref={opponentCompositeCanvasRef}
-            className="game-video game-video--visible"
-            style={opponentBackgroundActive ? {} : { display: 'none' }}
-          />
-        )}
-        {/* Bot / no-camera fallback */}
-        {!opponentVideoRef && !opponentBackground && (
-          <div className="opponent-avatar">
-            <span className="opponent-avatar-icon">{opponentIcon}</span>
-            <span className="opponent-avatar-label">{opponentLabel}</span>
-          </div>
-        )}
-        {/* Background overlay for bot pane (no real camera — composite not available) */}
-        {opponentBackground?.src && !opponentCompositeCanvasRef && (
+        {/* WebRTC feed — composited stream (background already baked in by the sender) */}
+        {opponentVideoRef
+          ? <video ref={opponentVideoRef} className="game-video game-video--visible game-video--opponent" playsInline muted={false} autoPlay />
+          : (!opponentBackground && (
+            <div className="opponent-avatar">
+              <span className="opponent-avatar-icon">{opponentIcon}</span>
+              <span className="opponent-avatar-label">{opponentLabel}</span>
+            </div>
+          ))
+        }
+        {/* Bot pane background overlay (no real camera) */}
+        {opponentBackground?.src && !opponentVideoRef && (
           <video
             key={opponentBackground.src}
             className="opponent-bg-video"

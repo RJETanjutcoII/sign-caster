@@ -5,13 +5,12 @@ import MultiUI from './MultiUI';
 import { makeState, applyStartOfTurn, applyIncoming, resolveOrderedTurns } from '@/lib/gameState';
 import { useGestureEngine } from '@/lib/useGestureEngine';
 import { useWebRTC } from '@/lib/useWebRTC';
-import { getEffectComponent, buildLabel, getVideoEffect } from '@/lib/effectHelper';
+import { getEffectComponent, buildLabel } from '@/lib/effectHelper';
 import { useVideoEffects } from '@/lib/useVideoEffects';
 import { ABILITIES } from '@/lib/abilities';
 import { useDomainClash } from '@/lib/useDomainClash';
 import { useResolutionPhases } from '@/lib/useResolutionPhases';
 import { useLatestRef } from '@/lib/utils';
-import { useCompositeVideo } from '@/lib/useCompositeVideo';
 
 const TURN_DURATION_S     = 5;
 const OPPONENT_TIMEOUT_MS = 3000;
@@ -90,7 +89,7 @@ export default function PvPCanvas({ loadout, build, opponentLoadout, opponentBui
 
   // ── Opponent camera (WebRTC) ──────────────────────────────────────────────
   const opponentVideoRef = useRef(null);
-  const { opponentStream } = useWebRTC({ mp, playerId, localVideoRef: videoRef, enabled: true });
+  const { opponentStream } = useWebRTC({ mp, playerId, localVideoRef: videoRef, compositeCanvasRef, backgroundActive, enabled: true });
 
   useEffect(() => {
     if (opponentVideoRef.current && opponentStream) {
@@ -237,18 +236,6 @@ export default function PvPCanvas({ loadout, build, opponentLoadout, opponentBui
     }, delay);
   }
 
-  // ── Opponent pane background ──────────────────────────────────────────────
-  const opponentBackground =
-    opponentState?.activeDomain
-      ? getVideoEffect(opponentState.activeDomain.abilityKey, true)
-      : playerState?.activeDomain
-      ? getVideoEffect(playerState.activeDomain.abilityKey, false)
-      : null;
-
-  // ── Opponent compositing (Zoom-style background replacement) ─────────────
-  const { compositeCanvasRef: opponentCompositeRef, backgroundActive: opponentBgActive } =
-    useCompositeVideo({ videoRef: opponentVideoRef, activeEffect: opponentBackground });
-
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <MultiUI
@@ -273,9 +260,6 @@ export default function PvPCanvas({ loadout, build, opponentLoadout, opponentBui
       opponentLabel="OPP"
       opponentIcon="👤"
       opponentVideoRef={opponentStream ? opponentVideoRef : null}
-      opponentBackground={opponentBackground}
-      opponentCompositeCanvasRef={opponentCompositeRef}
-      opponentBackgroundActive={opponentBgActive}
       turnKey={turnKey}
       confirmedGesture={confirmedGesture}
       resolveMessage={resolveMessage}

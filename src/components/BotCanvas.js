@@ -5,11 +5,14 @@ import MultiUI from './MultiUI';
 import { makeState, applyStartOfTurn, applyIncoming, resolveOrderedTurns } from '@/lib/gameState';
 import { BOT_LOADOUT, BOT_BUILD, chooseBotGesture } from '@/lib/bot';
 import { useGestureEngine } from '@/lib/useGestureEngine';
-import { getEffectComponent, buildLabel } from '@/lib/effectHelper';
+import { getEffectComponent, buildLabel, getVideoEffect } from '@/lib/effectHelper';
 import { useVideoEffects } from '@/lib/useVideoEffects';
+import { ABILITIES } from '@/lib/abilities';
+import { useDomainClash } from '@/lib/useDomainClash';
+import { useResolutionPhases } from '@/lib/useResolutionPhases';
+import { useLatestRef } from '@/lib/utils';
 
 const TURN_DURATION_S = 5;
-const RESOLVE_SUB_S   = 2;
 const ZOOM            = 1.25;
 
 export default function BotCanvas({ loadout, build, onBack }) {
@@ -25,7 +28,7 @@ export default function BotCanvas({ loadout, build, onBack }) {
   const [resolveMessage,   setResolveMessage]   = useState(null);
   const [gameOver,         setGameOver]         = useState(null);
 
-  const gamePhaseRef    = useRef('warmup');
+  const gamePhaseRef     = useRef('warmup');
   const forcedGestureRef = useRef(null);
 
   // ── Player state ──────────────────────────────────────────────────────────
@@ -36,12 +39,16 @@ export default function BotCanvas({ loadout, build, onBack }) {
   // ── Bot state ─────────────────────────────────────────────────────────────
   const botInit = makeState(BOT_BUILD);
   const [botState, setBotState] = useState(botInit);
-  const botStateRef        = useRef(botInit);
+  const botStateRef         = useRef(botInit);
   const botForcedGestureRef = useRef(null);
   const botLockedGestureRef = useRef(null);
 
   // ── Staged resolution data ────────────────────────────────────────────────
   const pendingResolutionRef = useRef(null);
+
+  // ── Clash bridge refs (created here so both hooks can share them) ─────────
+  const duelTargetGestureRef = useRef(null);
+  const handleDuelResultRef  = useRef(null);
 
   // ── Dev helpers ───────────────────────────────────────────────────────────
   const [showLandmarks, setShowLandmarks] = useState(false);
@@ -51,7 +58,8 @@ export default function BotCanvas({ loadout, build, onBack }) {
   useEffect(() => { showLandmarksRef.current = showLandmarks; }, [showLandmarks]);
 
   // ── Gesture engine ────────────────────────────────────────────────────────
-  const { status, currentGesture, confirmedGestureRef, lastGestureRef, compositeCanvasRef, setActiveBackground, fps } = useGestureEngine({
+  const { status, currentGesture, confirmedGestureRef, lastGestureRef,
+          compositeCanvasRef, setActiveBackground, fps } = useGestureEngine({
     loadout,
     videoRef,
     canvasRef,
@@ -62,10 +70,37 @@ export default function BotCanvas({ loadout, build, onBack }) {
     onWarmupComplete: () => setGamePhase('selecting'),
     onConfirm:        (g) => setConfirmedGesture(g),
     onCancel:         ()  => setConfirmedGesture(null),
+    duelTargetGestureRef,
+    onDuelConfirm: () => handleDuelResultRef.current?.(),
   });
 
   const { playerVideoEffect, backgroundActive, applyVideoEffect, clearVideoEffect } =
     useVideoEffects({ setActiveBackground, activeDomain: playerState?.activeDomain });
+
+  const applyVideoEffectRef = useLatestRef(applyVideoEffect);
+  const clearVideoEffectRef = useLatestRef(clearVideoEffect);
+
+  // ── Domain clash ──────────────────────────────────────────────────────────
+  const clash = useDomainClash({
+    gamePhase, setGamePhase,
+    playerStateRef, opponentStateRef: botStateRef,
+    setPlayerState, setOpponentState: setBotState,
+    setActiveEffect, applyVideoEffectRef, clearVideoEffectRef,
+    duelTargetGestureRef, handleDuelResultRef,
+    mode: 'pvb',
+  });
+
+  // ── Shared resolution phase transitions ──────────────────────────────────
+  useResolutionPhases({
+    gamePhase, gameOver,
+    pendingResolutionRef,
+    playerStateRef, opponentStateRef: botStateRef,
+    setPlayerState, setOpponentState: setBotState,
+    setGameOver, setGamePhase,
+    setResolveMessage, setActiveEffect,
+    applyVideoEffectRef, clearVideoEffectRef,
+    opponentLabel: 'BOT',
+  });
 
   // ── Turn timer ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -94,6 +129,12 @@ export default function BotCanvas({ loadout, build, onBack }) {
     // Apply bot's domain outgoing to player
     if (botDomainOut.damage > 0 || botDomainOut.stunTurns > 0) {
       playerStateRef.current = applyIncoming(playerStateRef.current, botDomainOut);
+      // Domain tick stuns run after player SOT, so forcedGestureRef is already set.
+      // If a stun just landed and the player has no forced gesture yet, apply it now.
+      if (botDomainOut.stunTurns > 0 && playerStateRef.current.stunTurnsRemaining > 0 && forcedGestureRef.current === null) {
+        playerStateRef.current = { ...playerStateRef.current, stunTurnsRemaining: playerStateRef.current.stunTurnsRemaining - 1 };
+        forcedGestureRef.current = 'stunned';
+      }
     }
     setPlayerState(playerStateRef.current);
     setBotState(botStateRef.current);
@@ -114,6 +155,16 @@ export default function BotCanvas({ loadout, build, onBack }) {
       const playerLocked = forcedGestureRef.current ?? lastGestureRef.current;
       const botLocked    = botLockedGestureRef.current;
       forcedGestureRef.current = null;
+
+      // ── Domain clash detection ───────────────────────────────────────────
+      const playerIsDomain = ABILITIES[playerLocked]?.turnType === 'domain';
+      const botIsDomain    = ABILITIES[botLocked]?.turnType === 'domain';
+      const noDomainActive = !playerStateRef.current.activeDomain && !botStateRef.current.activeDomain;
+
+      if (playerIsDomain && botIsDomain && noDomainActive) {
+        clash.initClash(playerLocked, botLocked, Date.now());
+        return;
+      }
 
       const playerSpeed = Math.max(0, (playerStateRef.current.spd || 1) + (playerStateRef.current.speedMod || 0));
       const botSpeed    = Math.max(0, (botStateRef.current.spd    || 1) + (botStateRef.current.speedMod    || 0));
@@ -136,51 +187,20 @@ export default function BotCanvas({ loadout, build, onBack }) {
       setResolveMessage(buildLabel(result.firstMoverIsPlayer ? 'YOU' : 'BOT', result.firstGesture, result.firstMessage));
       const firstEffect = getEffectComponent(result.firstEffectKey, result.firstGesture);
       setActiveEffect(result.firstMoverIsPlayer && firstEffect ? () => firstEffect : null);
-      applyVideoEffect(result.firstGesture, result.firstMoverIsPlayer);
+      applyVideoEffectRef.current(result.firstGesture, result.firstMoverIsPlayer);
       setGamePhase('resolving_first');
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [gamePhase, gameOver]);
+  }, [gamePhase, gameOver]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── resolving_first → resolving_second ────────────────────────────────────
-  useEffect(() => {
-    if (gamePhase !== 'resolving_first') return;
-
-    const timeout = setTimeout(() => {
-      const r = pendingResolutionRef.current;
-
-      playerStateRef.current = r.playerFinal;
-      botStateRef.current    = r.botFinal;
-      setPlayerState(r.playerFinal);
-      setBotState(r.botFinal);
-
-      const go = r.gameOverResult ??
-        (r.playerFinal.hp <= 0 ? 'loss' : r.botFinal.hp <= 0 ? 'win' : null);
-      if (go) setGameOver(go);
-
-      setResolveMessage(buildLabel(!r.firstMoverIsPlayer ? 'YOU' : 'BOT', r.secondGesture, r.secondMessage));
-      const secondEffect = getEffectComponent(r.secondEffectKey, r.secondGesture);
-      setActiveEffect(!r.firstMoverIsPlayer && secondEffect ? () => secondEffect : null);
-      applyVideoEffect(r.secondGesture, !r.firstMoverIsPlayer);
-      setGamePhase('resolving_second');
-    }, RESOLVE_SUB_S * 1000);
-
-    return () => clearTimeout(timeout);
-  }, [gamePhase]);
-
-  // ── resolving_second → selecting ──────────────────────────────────────────
-  useEffect(() => {
-    if (gamePhase !== 'resolving_second') return;
-
-    const timeout = setTimeout(() => {
-      setActiveEffect(null);
-      clearVideoEffect();
-      if (!gameOver) setGamePhase('selecting');
-    }, RESOLVE_SUB_S * 1000);
-
-    return () => clearTimeout(timeout);
-  }, [gamePhase, gameOver]);
+  // ── Opponent pane background ──────────────────────────────────────────────
+  const opponentBackground =
+    botState?.activeDomain
+      ? getVideoEffect(botState.activeDomain.abilityKey, true)
+      : playerState?.activeDomain
+      ? getVideoEffect(playerState.activeDomain.abilityKey, false)
+      : null;
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -205,6 +225,8 @@ export default function BotCanvas({ loadout, build, onBack }) {
       opponentLoadout={BOT_LOADOUT}
       opponentLabel="BOT"
       opponentIcon="🤖"
+      opponentActiveDomain={botState?.activeDomain}
+      opponentBackground={opponentBackground}
       turnKey={turnKey}
       confirmedGesture={confirmedGesture}
       resolveMessage={resolveMessage}
@@ -213,6 +235,12 @@ export default function BotCanvas({ loadout, build, onBack }) {
         confirmedGestureRef.current = null;
         setConfirmedGesture(null);
       }}
+      clashScores={clash.clashScores}
+      clashRound={clash.clashRound}
+      clashPromptGesture={clash.clashPromptGesture}
+      clashWinner={clash.clashWinner}
+      clashPlayerDomain={clash.clashPlayerDomainRef.current}
+      clashOppDomain={clash.clashOppDomainRef.current}
     />
   );
 }

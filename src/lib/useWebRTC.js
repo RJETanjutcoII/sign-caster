@@ -52,20 +52,39 @@ export function useWebRTC({ mp, playerId, localVideoRef, enabled }) {
       if (addLocalTracks()) clearInterval(trackInterval);
     }, 200);
 
+    // ICE candidates can arrive before setRemoteDescription completes — buffer them.
+    const iceCandidateQueue = [];
+    let remoteDescSet = false;
+
+    async function flushIceCandidates() {
+      while (iceCandidateQueue.length) {
+        const c = iceCandidateQueue.shift();
+        await pc.addIceCandidate(new RTCIceCandidate(c)).catch(() => {});
+      }
+    }
+
     // Handle incoming signals
     mp.setOnSignal(async (signal) => {
       if (stopped) return;
       if (signal.type === 'offer') {
         await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+        remoteDescSet = true;
+        await flushIceCandidates();
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
         mp.sendSignal({ type: 'answer', sdp: pc.localDescription });
       }
       if (signal.type === 'answer') {
         await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+        remoteDescSet = true;
+        await flushIceCandidates();
       }
       if (signal.type === 'ice' && signal.candidate) {
-        await pc.addIceCandidate(new RTCIceCandidate(signal.candidate)).catch(() => {});
+        if (remoteDescSet) {
+          await pc.addIceCandidate(new RTCIceCandidate(signal.candidate)).catch(() => {});
+        } else {
+          iceCandidateQueue.push(signal.candidate);
+        }
       }
     });
 

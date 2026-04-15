@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useRef, useMemo, useEffect } from 'react';
+import { useState, useRef, useMemo, useEffect, useCallback } from 'react';
+import { useLatestRef } from './utils';
 import { detectThumbsDown } from '@/lib/gestures';
 import { ABILITIES } from '@/lib/abilities';
 
@@ -93,6 +94,8 @@ export function useGestureEngine({
   onWarmupComplete,
   onConfirm,
   onCancel,
+  onDuelConfirm,
+  duelTargetGestureRef,
 }) {
   const [status,         setStatus]         = useState('Initializing...');
   const [currentGesture, setCurrentGesture] = useState(null);
@@ -124,38 +127,41 @@ export function useGestureEngine({
   const bgVideoRef          = useRef(null);       // hidden <video> for the background MP4
   const activeBackgroundRef = useRef(null);       // { src, loop } | null
 
-  function setActiveBackground(effect) {
+  // Stable reference — reads refs only, so no deps needed.
+  // Must be stable so useVideoEffects' domain-expiry effect doesn't re-fire on every render.
+  const setActiveBackground = useCallback((effect) => {
     activeBackgroundRef.current = effect ?? null;
     const bv = bgVideoRef.current;
     if (!bv) return;
     if (!effect) {
       bv.pause();
       bv.src = '';
-    } else if (bv.src !== window.location.origin + effect.src) {
-      bv.src    = effect.src;
-      bv.loop   = effect.loop ?? false;
+    } else {
+      if (bv.src !== window.location.origin + effect.src) {
+        bv.src  = effect.src;
+        bv.loop = effect.loop ?? false;
+      } else {
+        bv.loop = effect.loop ?? false;
+      }
       bv.play().catch(() => {});
     }
-  }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Exposed refs (read by turn-timer logic outside this hook)
   const confirmedGestureRef = useRef(null);
   const lastGestureRef      = useRef(null);
 
   // Keep callbacks fresh without restarting the loop
-  const onWarmupCompleteRef = useRef(onWarmupComplete);
-  const onConfirmRef        = useRef(onConfirm);
-  const onCancelRef         = useRef(onCancel);
-  onWarmupCompleteRef.current = onWarmupComplete;
-  onConfirmRef.current        = onConfirm;
-  onCancelRef.current         = onCancel;
+  const onWarmupCompleteRef = useLatestRef(onWarmupComplete);
+  const onConfirmRef        = useLatestRef(onConfirm);
+  const onCancelRef         = useLatestRef(onCancel);
+  const onDuelConfirmRef    = useLatestRef(onDuelConfirm);
 
   const hasFaceGesture = useMemo(
     () => [...loadout].some(key => ABILITIES[key]?.gestureType === 'face' || ABILITIES[key]?.needsFace),
     [loadout]
   );
-  const hasFaceGestureRef = useRef(hasFaceGesture);
-  useEffect(() => { hasFaceGestureRef.current = hasFaceGesture; }, [hasFaceGesture]);
+  const hasFaceGestureRef = useLatestRef(hasFaceGesture);
 
   // Pre-group loadout abilities by gestureType — avoids 3× iteration per frame
   const gestureGroups = useMemo(() => {
@@ -166,8 +172,7 @@ export function useGestureEngine({
     }
     return g;
   }, [loadout]);
-  const gestureGroupsRef = useRef(gestureGroups);
-  useEffect(() => { gestureGroupsRef.current = gestureGroups; }, [gestureGroups]);
+  const gestureGroupsRef = useLatestRef(gestureGroups);
 
   // Precompute zoom drawing params
   const zoomScale  = zoom ? 1 / zoom : 1;
@@ -175,6 +180,7 @@ export function useGestureEngine({
 
   useEffect(() => {
     let stopped = false;
+    let ownStream = null; // captured here so cleanup stops exactly this stream
 
     const originalConsoleError = console.error.bind(console);
     console.error = (...args) => {
@@ -223,9 +229,15 @@ export function useGestureEngine({
 
       if (stopped) { stream.getTracks().forEach(t => t.stop()); return; }
 
+      ownStream = stream;
       const video = videoRef.current;
       video.srcObject = stream;
-      await new Promise(res => (video.onloadedmetadata = res));
+      // Use addEventListener so we don't miss the event if it already fired
+      // (video.readyState >= 1 means HAVE_METADATA — can happen on fast second sessions)
+      await new Promise(res => {
+        if (video.readyState >= 1) { res(); return; }
+        video.addEventListener('loadedmetadata', res, { once: true });
+      });
       video.play();
 
       // ── Camera FPS counter (requestVideoFrameCallback) ────────────────────
@@ -331,7 +343,7 @@ export function useGestureEngine({
         if (gamePhaseRef.current === 'warmup') {
           if (hands.length > 0) {
             warmupCountRef.current++;
-            if (warmupCountRef.current >= 3) {
+if (warmupCountRef.current >= 3) {
               gamePhaseRef.current = 'selecting';
               onWarmupCompleteRef.current();
             }
@@ -419,19 +431,46 @@ export function useGestureEngine({
           setCurrentGesture(gesture);
         }
 
+        // During a clash duel, also detect the target gesture even if it's not in the loadout
+        let duelGesture = null;
+        if (gamePhaseRef.current === 'clash_resolve_duel') {
+          const duelTarget = duelTargetGestureRef?.current;
+          if (duelTarget) {
+            if (gesture === duelTarget) {
+              duelGesture = duelTarget; // already detected via normal path
+            } else {
+              const ab = ABILITIES[duelTarget];
+              if (ab && hands.length > 0) {
+                const enough = ab.gestureType === 'two-hand' ? hands.length >= 2 : true;
+                if (enough && ab.detect(hands, faceLandmarks, handedness)) duelGesture = duelTarget;
+              }
+            }
+          }
+        }
+        const activeGesture = duelGesture ?? gesture;
+
         // Hold debounce — lock in gesture after HOLD_THRESHOLD_MS
         const hold = gestureHoldRef.current;
-        if (gesture === hold.gesture) {
-          if (gesture && Date.now() - hold.since >= HOLD_THRESHOLD_MS) {
+        if (activeGesture === hold.gesture) {
+          if (activeGesture && Date.now() - hold.since >= HOLD_THRESHOLD_MS) {
             if (gamePhaseRef.current === 'selecting' && !playerStateRef.current.multiTurnActive) {
-              lastGestureRef.current      = gesture;
-              confirmedGestureRef.current = gesture;
-              onConfirmRef.current(gesture);
+              // Block domain-on-domain: if a domain is already active, silently skip
+              const isDomain = ABILITIES[activeGesture]?.turnType === 'domain';
+              const domainActive = !!playerStateRef.current.activeDomain;
+              if (!(isDomain && domainActive)) {
+                lastGestureRef.current      = activeGesture;
+                confirmedGestureRef.current = activeGesture;
+                onConfirmRef.current(activeGesture);
+              }
+            } else if (gamePhaseRef.current === 'clash_resolve_duel') {
+              if (duelTargetGestureRef?.current && activeGesture === duelTargetGestureRef.current) {
+                onDuelConfirmRef.current?.(activeGesture);
+              }
             }
             gestureHoldRef.current = { gesture: null, since: 0 };
           }
         } else {
-          gestureHoldRef.current = { gesture, since: Date.now() };
+          gestureHoldRef.current = { gesture: activeGesture, since: Date.now() };
         }
 
         rafRef.current = setTimeout(loop, 33);
@@ -449,8 +488,10 @@ export function useGestureEngine({
       stopped = true;
       console.error = originalConsoleError;
       if (rafRef.current) clearTimeout(rafRef.current);
-      if (videoRef.current?.srcObject)
-        videoRef.current.srcObject.getTracks().forEach(t => t.stop());
+      // Stop the stream this effect instance created — NOT videoRef.current.srcObject,
+      // which may already belong to a newer effect run if init() was fast.
+      ownStream?.getTracks().forEach(t => t.stop());
+      ownStream = null;
       landmarkerRef.current?.close();
       faceLandmarkerRef.current?.close();
       workerRef.current?.terminate();

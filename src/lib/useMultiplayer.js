@@ -17,6 +17,7 @@ export function useMultiplayer() {
   const turnResultRef      = useRef(null);
   const onTurnResolvedRef  = useRef(null);
   const onSignalRef        = useRef(null);        // WebRTC signaling callback
+  const onClashResultRef   = useRef(null);
 
   // Cleanup only on full unmount (page.js level)
   useEffect(() => {
@@ -41,8 +42,9 @@ export function useMultiplayer() {
         onTurnResolvedRef.current?.();
       }
       if (msg.type === 'opponent_disconnected') { setDisconnected(true); }
-      if (msg.type === 'signal')  { onSignalRef.current?.(msg.signal); }
-      if (msg.type === 'error')   { setError(msg.message); }
+      if (msg.type === 'signal')       { onSignalRef.current?.(msg.signal); }
+      if (msg.type === 'clash_result') { onClashResultRef.current?.(msg); }
+      if (msg.type === 'error')        { setError(msg.message); }
     };
 
     ws.onerror = () => setError('Connection error');
@@ -80,12 +82,17 @@ export function useMultiplayer() {
     send({ type: 'gesture', gesture, speed });
   }
 
+  function emitClashGesture(round) {
+    send({ type: 'clash_gesture', round });
+  }
+
   function sendSignal(signal) {
     send({ type: 'signal', signal });
   }
 
   function setOnTurnResolved(cb) { onTurnResolvedRef.current = cb; }
   function setOnSignal(cb)       { onSignalRef.current = cb; }
+  function setOnClashResult(cb)  { onClashResultRef.current = cb; }
 
   // Allow resetting for rematch / back-to-lobby
   function reset() {
@@ -100,14 +107,15 @@ export function useMultiplayer() {
     turnResultRef.current     = null;
     onTurnResolvedRef.current = null;
     onSignalRef.current       = null;
+    onClashResultRef.current  = null;
   }
 
   return {
     roomCode, playerId, connected, opponentHandshake, disconnected, error,
     turnResultRef,
-    createRoom, joinRoom, sendHandshake, emitGesture,
+    createRoom, joinRoom, sendHandshake, emitGesture, emitClashGesture,
     sendSignal, setOnSignal,
-    setOnTurnResolved,
+    setOnTurnResolved, setOnClashResult,
     reset,
   };
 }

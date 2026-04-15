@@ -23,6 +23,56 @@ export function makeState({ hp = 120, atk = 0, def = 0, spd = 1, mp = 20 } = {})
 
 export const INITIAL_STATE = makeState();
 
+// ── Internal helpers ──────────────────────────────────────────────────────────
+
+/**
+ * Returns the early-exit failure result if the ability costs can't be met,
+ * or null if the player can afford it.
+ */
+function checkCosts(s, ability, outgoing) {
+  if ((ability.manaCost || 0) > s.mana)   return { newState: s, outgoing, message: 'Not enough mana', effectKey: 'fail' };
+  if ((ability.ultCost  || 0) > s.ultBar) return { newState: s, outgoing, message: 'Not enough ult',  effectKey: 'fail' };
+  return null;
+}
+
+/**
+ * Returns `damage` scaled by the caster's effective ATK stat, or 0 if damage is falsy.
+ */
+function withAtk(damage, state) {
+  if (!damage) return 0;
+  return damage + (state.atk || 0) + (state.tempAtk?.delta ?? 0);
+}
+
+/**
+ * Activates a domain on the caster's state.
+ * Deducts costs, sets activeDomain, and computes initial outgoing effects
+ * from ability.resolve(). Cost sufficiency must be pre-checked by the caller.
+ *
+ * @param {object} casterState
+ * @param {string} abilityKey
+ * @returns {{ newCasterState: object, outgoing: object }}
+ */
+export function applyDomain(casterState, abilityKey) {
+  const ability = ABILITIES[abilityKey];
+  if (!ability) return { newCasterState: casterState, outgoing: { damage: 0, stunTurns: 0, noRestBonus: false, dot: null, undodgeable: false } };
+
+  let s = { ...casterState };
+  s.mana   -= (ability.manaCost || 0);
+  s.ultBar -= (ability.ultCost  || 0);
+  s.ultBar  = Math.min(s.maxUlt, s.ultBar + (ability.ultGain || 0));
+  s.activeDomain = { abilityKey, turnsLeft: ability.turnAmount };
+
+  const outgoing = { damage: 0, stunTurns: 0, noRestBonus: false, dot: null, undodgeable: ability.undodgeable ?? false };
+  if (ability.resolve) {
+    const result = ability.resolve({ caster: s });
+    outgoing.damage    = withAtk(result.damage ?? 0, s);
+    outgoing.stunTurns = result.stunTurns ?? 0;
+    outgoing.dot       = result.dot ?? null;
+  }
+
+  return { newCasterState: s, outgoing };
+}
+
 /**
  * Called at the start of each selecting phase.
  * Ticks down DoT, stun, and determines if a gesture is forced.
@@ -108,22 +158,10 @@ export function resolveTurn(state, gesture) {
 
   // ── Domain: activate (or replace existing) ──────────────────────────────
   if (ability.turnType === 'domain') {
-    if ((ability.manaCost || 0) > s.mana)   return { newState: s, outgoing, message: 'Not enough mana', effectKey: 'fail' };
-    if ((ability.ultCost  || 0) > s.ultBar) return { newState: s, outgoing, message: 'Not enough ult',  effectKey: 'fail' };
-    s.mana   -= (ability.manaCost || 0);
-    s.ultBar -= (ability.ultCost  || 0);
-    s.ultBar  = Math.min(s.maxUlt, s.ultBar + (ability.ultGain || 0));
-    s.activeDomain = { abilityKey: gesture, turnsLeft: ability.turnAmount };
-    outgoing.undodgeable = ability.undodgeable ?? false;
-    if (ability.resolve) {
-      const result = ability.resolve({ caster: s });
-      const effectiveAtk = (s.atk || 0) + (s.tempAtk?.delta ?? 0);
-      outgoing.damage    = result.damage    ?? 0;
-      if (outgoing.damage > 0) outgoing.damage += effectiveAtk;
-      outgoing.stunTurns = result.stunTurns ?? 0;
-      outgoing.dot       = result.dot       ?? null;
-    }
-    return { newState: s, outgoing, effectKey: 'domain_start', message: `${ability.name} activated!` };
+    const fail = checkCosts(s, ability, outgoing);
+    if (fail) return fail;
+    const { newCasterState, outgoing: domainOut } = applyDomain(s, gesture);
+    return { newState: newCasterState, outgoing: domainOut, effectKey: 'domain_start', message: `${ability.name} activated!` };
   }
 
   // ── Multi-turn: continuation / final turn ────────────────────────────────
@@ -137,9 +175,7 @@ export function resolveTurn(state, gesture) {
     if (result.nullifySelf) s.nullified = true;
     if (result.atkBuff)     s.tempAtk = result.atkBuff;
     if (result.defBuff)     s.tempDef = result.defBuff;
-    const effectiveAtk   = (s.atk || 0) + (s.tempAtk?.delta ?? 0);
-    outgoing.damage      = result.damage ?? 0;
-    if (outgoing.damage > 0) outgoing.damage += effectiveAtk;
+    outgoing.damage      = withAtk(result.damage ?? 0, s);
     outgoing.stunTurns   = result.stunTurns   ?? 0;
     outgoing.noRestBonus = result.noRestBonus ?? false;
     outgoing.dot         = result.dot         ?? null;
@@ -151,8 +187,8 @@ export function resolveTurn(state, gesture) {
   // ── Multi-turn: first cast ───────────────────────────────────────────────
   // Pay costs immediately so bars update visibly when the move is committed.
   if (ability.turnType === 'multi' && !s.multiTurnActive) {
-    if ((ability.manaCost || 0) > s.mana)   return { newState: s, outgoing, message: 'Not enough mana', effectKey: 'fail' };
-    if ((ability.ultCost  || 0) > s.ultBar) return { newState: s, outgoing, message: 'Not enough ult',  effectKey: 'fail' };
+    const fail = checkCosts(s, ability, outgoing);
+    if (fail) return fail;
     s.mana   -= (ability.manaCost || 0);
     s.ultBar -= (ability.ultCost  || 0);
     s.multiTurnActive = { abilityKey: gesture, turnsLeft: ability.turnAmount - 1 };
@@ -160,14 +196,8 @@ export function resolveTurn(state, gesture) {
   }
 
   // ── Single-turn ──────────────────────────────────────────────────────────
-  if ((ability.manaCost || 0) > s.mana) {
-    message = 'Not enough mana';
-    return { newState: s, outgoing, message, effectKey: 'fail' };
-  }
-  if ((ability.ultCost || 0) > s.ultBar) {
-    message = 'Not enough ult';
-    return { newState: s, outgoing, message, effectKey: 'fail' };
-  }
+  const fail = checkCosts(s, ability, outgoing);
+  if (fail) return fail;
 
   s.mana   -= (ability.manaCost || 0);
   s.ultBar -= (ability.ultCost  || 0);
@@ -179,9 +209,7 @@ export function resolveTurn(state, gesture) {
   if (result.speedBoost)  s.speedMod = (s.speedMod || 0) + result.speedBoost;
   if (result.atkBuff)     s.tempAtk = result.atkBuff;
   if (result.defBuff)     s.tempDef = result.defBuff;
-  const effectiveAtk   = (s.atk || 0) + (s.tempAtk?.delta ?? 0);
-  outgoing.damage      = result.damage ?? 0;
-  if (outgoing.damage > 0) outgoing.damage += effectiveAtk;
+  outgoing.damage      = withAtk(result.damage ?? 0, s);
   outgoing.stunTurns   = result.stunTurns   ?? 0;
   outgoing.noRestBonus = result.noRestBonus ?? false;
   outgoing.dot         = result.dot         ?? null;
@@ -297,7 +325,7 @@ export function resolveOrderedTurns(
   if (
     !suppressed &&
     secondFinal.activeDomain?.abilityKey === sGesture &&
-    (secondOut.stunTurns > 0 || secondOut.damage > 0 || secondOut.dot != null)
+    (secondOut.damage > 0 || secondOut.dot != null)
   ) {
     secondFinal = {
       ...secondFinal,

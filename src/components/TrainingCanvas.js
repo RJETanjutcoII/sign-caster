@@ -172,11 +172,11 @@ export default function TrainingCanvas({ loadout, build, onBack }) {
       <DomainLayer activeDomain={playerState.activeDomain} />
 
       {activeEffect && (() => { const E = activeEffect; return <E />; })()}
-      {gamePhase === 'selecting' && playerState.multiTurnActive && (() => {
+      {playerState.multiTurnActive && (() => {
         const L = ABILITIES[playerState.multiTurnActive.abilityKey]?.LoopEffect;
         return L ? <L /> : null;
       })()}
-      {gamePhase === 'selecting' && playerState.activeDomain && (() => {
+      {playerState.activeDomain && (() => {
         const L = ABILITIES[playerState.activeDomain.abilityKey]?.LoopEffect;
         return L ? <L /> : null;
       })()}

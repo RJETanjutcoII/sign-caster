@@ -5,13 +5,17 @@ import MultiUI from './MultiUI';
 import { makeState, applyStartOfTurn, applyIncoming, resolveOrderedTurns } from '@/lib/gameState';
 import { useGestureEngine } from '@/lib/useGestureEngine';
 import { useWebRTC } from '@/lib/useWebRTC';
-import { getEffectComponent, buildLabel } from '@/lib/effectHelper';
+import { getEffectComponent, buildLabel, getVideoEffect } from '@/lib/effectHelper';
 import { useVideoEffects } from '@/lib/useVideoEffects';
+import { ABILITIES } from '@/lib/abilities';
+import { useDomainClash } from '@/lib/useDomainClash';
+import { useResolutionPhases } from '@/lib/useResolutionPhases';
+import { useLatestRef } from '@/lib/utils';
+import { useCompositeVideo } from '@/lib/useCompositeVideo';
 
-const TURN_DURATION_S = 5;
-const RESOLVE_SUB_S   = 2;
+const TURN_DURATION_S     = 5;
 const OPPONENT_TIMEOUT_MS = 3000;
-const ZOOM = 1.25;
+const ZOOM                = 1.25;
 
 export default function PvPCanvas({ loadout, build, opponentLoadout, opponentBuild, playerId, mp, onBack }) {
   const videoRef  = useRef(null);
@@ -26,7 +30,7 @@ export default function PvPCanvas({ loadout, build, opponentLoadout, opponentBui
   const [resolveMessage,   setResolveMessage]   = useState(null);
   const [gameOver,         setGameOver]         = useState(null);
 
-  const gamePhaseRef    = useRef('warmup');
+  const gamePhaseRef     = useRef('warmup');
   const forcedGestureRef = useRef(null);
 
   // ── Player state ──────────────────────────────────────────────────────────
@@ -41,6 +45,10 @@ export default function PvPCanvas({ loadout, build, opponentLoadout, opponentBui
   // ── Pending resolution ────────────────────────────────────────────────────
   const pendingResolutionRef = useRef(null);
 
+  // ── Clash bridge refs (created here so both hooks can share them) ─────────
+  const duelTargetGestureRef = useRef(null);
+  const handleDuelResultRef  = useRef(null);
+
   // ── Dev helpers ───────────────────────────────────────────────────────────
   const [showLandmarks, setShowLandmarks] = useState(false);
   const showLandmarksRef = useRef(false);
@@ -49,7 +57,8 @@ export default function PvPCanvas({ loadout, build, opponentLoadout, opponentBui
   useEffect(() => { showLandmarksRef.current = showLandmarks; }, [showLandmarks]);
 
   // ── Gesture engine ────────────────────────────────────────────────────────
-  const { status, currentGesture, confirmedGestureRef, lastGestureRef, compositeCanvasRef, setActiveBackground, fps } = useGestureEngine({
+  const { status, currentGesture, confirmedGestureRef, lastGestureRef,
+          compositeCanvasRef, setActiveBackground, fps } = useGestureEngine({
     loadout,
     videoRef,
     canvasRef,
@@ -60,20 +69,28 @@ export default function PvPCanvas({ loadout, build, opponentLoadout, opponentBui
     onWarmupComplete: () => setGamePhase('selecting'),
     onConfirm:        (g) => setConfirmedGesture(g),
     onCancel:         ()  => setConfirmedGesture(null),
+    duelTargetGestureRef,
+    onDuelConfirm: () => handleDuelResultRef.current?.(),
   });
 
   const { playerVideoEffect, backgroundActive, applyVideoEffect, clearVideoEffect } =
     useVideoEffects({ setActiveBackground, activeDomain: playerState?.activeDomain });
 
-  // Stable refs for applyVideoEffect/clearVideoEffect — prevents stale captures in doResolve closure
-  const applyVideoEffectRef = useRef(applyVideoEffect);
-  applyVideoEffectRef.current = applyVideoEffect;
-  const clearVideoEffectRef = useRef(clearVideoEffect);
-  clearVideoEffectRef.current = clearVideoEffect;
+  const applyVideoEffectRef = useLatestRef(applyVideoEffect);
+  const clearVideoEffectRef = useLatestRef(clearVideoEffect);
+
+  // ── Domain clash ──────────────────────────────────────────────────────────
+  const clash = useDomainClash({
+    gamePhase, setGamePhase,
+    playerStateRef, opponentStateRef, setPlayerState, setOpponentState,
+    setActiveEffect, applyVideoEffectRef, clearVideoEffectRef,
+    duelTargetGestureRef, handleDuelResultRef,
+    mode: 'pvp', mp, playerId,
+  });
 
   // ── Opponent camera (WebRTC) ──────────────────────────────────────────────
   const opponentVideoRef = useRef(null);
-  const { opponentStream } = useWebRTC({ mp, playerId, localVideoRef: videoRef, enabled: gamePhase !== 'warmup' });
+  const { opponentStream } = useWebRTC({ mp, playerId, localVideoRef: videoRef, enabled: true });
 
   useEffect(() => {
     if (opponentVideoRef.current && opponentStream) {
@@ -83,8 +100,20 @@ export default function PvPCanvas({ loadout, build, opponentLoadout, opponentBui
 
   // ── Disconnect handling ───────────────────────────────────────────────────
   useEffect(() => {
-    if (mp.disconnected) setGameOver('win'); // opponent left = you win
+    if (mp.disconnected) setGameOver('win');
   }, [mp.disconnected]);
+
+  // ── Shared resolution phase transitions ──────────────────────────────────
+  useResolutionPhases({
+    gamePhase, gameOver,
+    pendingResolutionRef,
+    playerStateRef, opponentStateRef,
+    setPlayerState, setOpponentState,
+    setGameOver, setGamePhase,
+    setResolveMessage, setActiveEffect,
+    applyVideoEffectRef, clearVideoEffectRef,
+    opponentLabel: 'OPP',
+  });
 
   // ── Turn timer ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -93,27 +122,29 @@ export default function PvPCanvas({ loadout, build, opponentLoadout, opponentBui
 
     setTurnKey(k => k + 1);
 
-    // Start of turn — player
     const { newState: sotState, forcedGesture, domainOutgoing: playerDomainOut } = applyStartOfTurn(playerStateRef.current);
     playerStateRef.current = sotState;
     forcedGestureRef.current = forcedGesture;
 
-    // Apply player's domain outgoing to opponent BEFORE opponent SOT
     if (playerDomainOut.damage > 0 || playerDomainOut.stunTurns > 0) {
       opponentStateRef.current = applyIncoming({ ...opponentStateRef.current, nullified: false }, playerDomainOut);
     }
 
-    // Opponent SOT (computed locally — deterministic mirror of their client)
     const { newState: oppSot, domainOutgoing: oppDomainOut } = applyStartOfTurn(opponentStateRef.current);
     opponentStateRef.current = oppSot;
 
     if (oppDomainOut.damage > 0 || oppDomainOut.stunTurns > 0) {
       playerStateRef.current = applyIncoming(playerStateRef.current, oppDomainOut);
+      // Domain tick stuns run after player SOT, so forcedGestureRef is already set.
+      // If a stun just landed and the player has no forced gesture yet, apply it now.
+      if (oppDomainOut.stunTurns > 0 && playerStateRef.current.stunTurnsRemaining > 0 && forcedGestureRef.current === null) {
+        playerStateRef.current = { ...playerStateRef.current, stunTurnsRemaining: playerStateRef.current.stunTurnsRemaining - 1 };
+        forcedGestureRef.current = 'stunned';
+      }
     }
     setPlayerState(playerStateRef.current);
     setOpponentState(opponentStateRef.current);
 
-    // Reset selection UI
     timeLeftRef.current = TURN_DURATION_S;
     setConfirmedGesture(null);
     setResolveMessage(null);
@@ -130,12 +161,9 @@ export default function PvPCanvas({ loadout, build, opponentLoadout, opponentBui
       const playerSpeed  = Math.max(0, (playerStateRef.current.spd || 1) + (playerStateRef.current.speedMod || 0));
       forcedGestureRef.current = null;
 
-      // Emit our gesture to the server
       mp.emitGesture(playerLocked, playerSpeed);
 
-      // Wait for opponent gesture (server sends turn_resolved with both)
       const resolveTimeout = setTimeout(() => {
-        // Timeout fallback: treat opponent as rested
         if (!mp.turnResultRef.current) {
           mp.turnResultRef.current = playerId === 'p1'
             ? { p1: { gesture: playerLocked, speed: playerSpeed }, p2: { gesture: null, speed: 1 } }
@@ -151,7 +179,7 @@ export default function PvPCanvas({ loadout, build, opponentLoadout, opponentBui
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [gamePhase, gameOver]);
+  }, [gamePhase, gameOver]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function doResolve(playerLocked, playerSpeed) {
     const result = mp.turnResultRef.current;
@@ -160,27 +188,33 @@ export default function PvPCanvas({ loadout, build, opponentLoadout, opponentBui
 
     if (!result) return;
 
-    // Map p1/p2 to player/opponent based on our playerId
     const myResult  = result[playerId];
     const oppId     = playerId === 'p1' ? 'p2' : 'p1';
     const oppResult = result[oppId];
-
     const oppLocked = oppResult.gesture;
     const oppSpeed  = Math.max(0, (opponentStateRef.current.spd || 1) + (opponentStateRef.current.speedMod || 0));
 
-    // Tiebreak: resolveAt parity is identical on both clients — no explicit coinFlip needed
-    // Even resolveAt = p1 goes first (from p1's perspective); odd = p2 goes first
+    // ── Domain clash detection ─────────────────────────────────────────────
+    const playerIsDomain = ABILITIES[myResult.gesture]?.turnType === 'domain';
+    const oppIsDomain    = ABILITIES[oppLocked]?.turnType === 'domain';
+    const noDomainActive = !playerStateRef.current.activeDomain && !opponentStateRef.current.activeDomain;
+
+    if (playerIsDomain && oppIsDomain && noDomainActive) {
+      const delay = Math.max(0, (result.resolveAt ?? Date.now()) - Date.now());
+      setTimeout(() => clash.initClash(myResult.gesture, oppLocked, result.resolveAt ?? Date.now()), delay);
+      return;
+    }
+
     const p1GoesFirst = (result.resolveAt ?? 0) % 2 === 0;
-    const coinFlip = playerId === 'p1' ? p1GoesFirst : !p1GoesFirst;
+    const coinFlip    = playerId === 'p1' ? p1GoesFirst : !p1GoesFirst;
 
     const resolved = resolveOrderedTurns(
-      playerStateRef.current,   myResult.gesture ?? playerLocked,  playerSpeed,
-      opponentStateRef.current, oppLocked,                          oppSpeed,
+      playerStateRef.current,   myResult.gesture ?? playerLocked, playerSpeed,
+      opponentStateRef.current, oppLocked,                         oppSpeed,
       coinFlip
     );
     pendingResolutionRef.current = resolved;
 
-    // Update refs immediately — needed for correct logic on the next turn
     playerStateRef.current   = resolved.playerIntermediate;
     opponentStateRef.current = resolved.botIntermediate;
 
@@ -192,7 +226,6 @@ export default function PvPCanvas({ loadout, build, opponentLoadout, opponentBui
     const firstMessage = buildLabel(resolved.firstMoverIsPlayer ? 'YOU' : 'OPP', resolved.firstGesture, resolved.firstMessage);
     const firstEffect  = getEffectComponent(resolved.firstEffectKey, resolved.firstGesture);
 
-    // Delay all UI state until resolveAt so both clients enter resolving_first simultaneously
     const delay = Math.max(0, (result.resolveAt ?? Date.now()) - Date.now());
     setTimeout(() => {
       setPlayerState(resolved.playerIntermediate);
@@ -204,44 +237,17 @@ export default function PvPCanvas({ loadout, build, opponentLoadout, opponentBui
     }, delay);
   }
 
-  // ── resolving_first → resolving_second ────────────────────────────────────
-  useEffect(() => {
-    if (gamePhase !== 'resolving_first') return;
+  // ── Opponent pane background ──────────────────────────────────────────────
+  const opponentBackground =
+    opponentState?.activeDomain
+      ? getVideoEffect(opponentState.activeDomain.abilityKey, true)
+      : playerState?.activeDomain
+      ? getVideoEffect(playerState.activeDomain.abilityKey, false)
+      : null;
 
-    const timeout = setTimeout(() => {
-      const r = pendingResolutionRef.current;
-
-      playerStateRef.current   = r.playerFinal;
-      opponentStateRef.current = r.botFinal;
-      setPlayerState(r.playerFinal);
-      setOpponentState(r.botFinal);
-
-      const go = r.gameOverResult ??
-        (r.playerFinal.hp <= 0 ? 'loss' : r.botFinal.hp <= 0 ? 'win' : null);
-      if (go) setGameOver(go);
-
-      setResolveMessage(buildLabel(!r.firstMoverIsPlayer ? 'YOU' : 'OPP', r.secondGesture, r.secondMessage));
-      const secondEffect = getEffectComponent(r.secondEffectKey, r.secondGesture);
-      setActiveEffect(!r.firstMoverIsPlayer && secondEffect ? () => secondEffect : null);
-      applyVideoEffect(r.secondGesture, !r.firstMoverIsPlayer);
-      setGamePhase('resolving_second');
-    }, RESOLVE_SUB_S * 1000);
-
-    return () => clearTimeout(timeout);
-  }, [gamePhase]);
-
-  // ── resolving_second → selecting ──────────────────────────────────────────
-  useEffect(() => {
-    if (gamePhase !== 'resolving_second') return;
-
-    const timeout = setTimeout(() => {
-      setActiveEffect(null);
-      clearVideoEffectRef.current();
-      if (!gameOver) setGamePhase('selecting');
-    }, RESOLVE_SUB_S * 1000);
-
-    return () => clearTimeout(timeout);
-  }, [gamePhase, gameOver]);
+  // ── Opponent compositing (Zoom-style background replacement) ─────────────
+  const { compositeCanvasRef: opponentCompositeRef, backgroundActive: opponentBgActive } =
+    useCompositeVideo({ videoRef: opponentVideoRef, activeEffect: opponentBackground });
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -267,6 +273,9 @@ export default function PvPCanvas({ loadout, build, opponentLoadout, opponentBui
       opponentLabel="OPP"
       opponentIcon="👤"
       opponentVideoRef={opponentStream ? opponentVideoRef : null}
+      opponentBackground={opponentBackground}
+      opponentCompositeCanvasRef={opponentCompositeRef}
+      opponentBackgroundActive={opponentBgActive}
       turnKey={turnKey}
       confirmedGesture={confirmedGesture}
       resolveMessage={resolveMessage}
@@ -275,6 +284,12 @@ export default function PvPCanvas({ loadout, build, opponentLoadout, opponentBui
         confirmedGestureRef.current = null;
         setConfirmedGesture(null);
       }}
+      clashScores={clash.clashScores}
+      clashRound={clash.clashRound}
+      clashPromptGesture={clash.clashPromptGesture}
+      clashWinner={clash.clashWinner}
+      clashPlayerDomain={clash.clashPlayerDomainRef.current}
+      clashOppDomain={clash.clashOppDomainRef.current}
     />
   );
 }

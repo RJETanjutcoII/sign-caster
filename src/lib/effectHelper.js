@@ -15,10 +15,13 @@ export function getEffectComponent(effectKey, gesture) {
 }
 
 // Returns { type, src, loop? } | null for the local player's camera effect
-export function getVideoEffect(gesture, isCaster) {
+// variant: 'normal' | 'entry' | 'opponent_entry'
+export function getVideoEffect(gesture, isCaster, variant = 'normal') {
   if (!gesture || gesture === 'stunned') return null;
   const effects = ABILITIES[gesture]?.videoEffects;
   if (!effects) return null;
+  if (variant === 'entry')          return isCaster ? (effects.caster_entry    ?? effects.caster) : (effects.opponent_entry ?? effects.target);
+  if (variant === 'opponent_entry') return effects.opponent_entry ?? null;
   return isCaster ? effects.caster : effects.target;
 }
 

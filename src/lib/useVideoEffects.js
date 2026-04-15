@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { getVideoEffect } from './effectHelper';
 
 /**
@@ -15,24 +15,25 @@ export function useVideoEffects({ setActiveBackground, activeDomain }) {
   const [activeBackground_local, setActiveBackground_local] = useState(null);
   const activeBgRef = useRef(null); // always-current mirror — avoids stale closures in useEffects
 
-  function applyVideoEffect(gesture, isCaster) {
-    const effect = getVideoEffect(gesture, isCaster) ?? null;
+  // Both functions read only refs and stable setters — no deps needed.
+  const applyVideoEffect = useCallback((gesture, isCaster, variant = 'normal') => {
+    const effect = getVideoEffect(gesture, isCaster, variant) ?? null;
     setPlayerVideoEffect(effect);
     if (effect?.type === 'background') {
       activeBgRef.current = effect;
       setActiveBackground(effect);
       setActiveBackground_local(effect);
     }
-  }
+  }, [setActiveBackground]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function clearVideoEffect() {
+  const clearVideoEffect = useCallback(() => {
     setPlayerVideoEffect(null);
     if (!activeBgRef.current?.loop) {
       activeBgRef.current = null;
       setActiveBackground(null);
       setActiveBackground_local(null);
     }
-  }
+  }, [setActiveBackground]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Clear looping background when domain expires
   useEffect(() => {

@@ -115,8 +115,10 @@ export default {
   Effect,
   LoopEffect,
   videoEffects: {
-    caster: { type: 'background', src: '/effects/malevolent_shrine/bg.mp4', loop: true },
-    target: { type: 'background', src: '/effects/malevolent_shrine/bg.mp4', loop: true },
+    caster:         { type: 'background', src: '/effects/malevolent_shrine/bg.mp4',                loop: true  },
+    target:         { type: 'background', src: '/effects/malevolent_shrine/bg.mp4',                loop: true  },
+    caster_entry:   { type: 'background', src: '/effects/malevolent_shrine/bg_entry.mp4',          loop: false },
+    opponent_entry: { type: 'background', src: '/effects/malevolent_shrine/bg_entry_opponent.mp4', loop: false },
   },
   resolve() { return {}; },
 };

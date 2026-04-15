@@ -44,7 +44,7 @@ wss.on('connection', (ws) => {
     if (msg.type === 'create') {
       let code;
       do { code = randomCode(); } while (rooms.has(code));
-      rooms.set(code, { players: [ws], gestures: {}, gestureTimer: null });
+      rooms.set(code, { players: [ws], gestures: {}, gestureTimer: null, clashRound: null, clashFirstPlayer: null, clashFirstAt: 0, clashTimer: null });
       ws.roomCode = code;
       ws.playerId = 'p1';
       send(ws, 'created', { roomCode: code });
@@ -82,6 +82,35 @@ wss.on('connection', (ws) => {
       return;
     }
 
+    // ── Domain clash gesture ──────────────────────────────────────────────
+    if (msg.type === 'clash_gesture') {
+      const round = msg.round;
+      const now   = Date.now();
+      const SIMULTANEOUS_MS = 100;
+
+      if (!room.clashRound || room.clashRound !== round) {
+        // First submission for this round — wait briefly for a simultaneous hit
+        room.clashRound       = round;
+        room.clashFirstPlayer = ws.playerId;
+        room.clashFirstAt     = now;
+        clearTimeout(room.clashTimer);
+        room.clashTimer = setTimeout(() => {
+          broadcast(room, 'clash_result', { winner: room.clashFirstPlayer, round });
+          room.clashFirstPlayer = null;
+          room.clashTimer       = null;
+        }, SIMULTANEOUS_MS);
+      } else if (room.clashFirstPlayer && now - room.clashFirstAt <= SIMULTANEOUS_MS) {
+        // Second submission arrived within the simultaneous window — coin flip
+        clearTimeout(room.clashTimer);
+        room.clashTimer = null;
+        const winner = Math.random() < 0.5 ? room.clashFirstPlayer : ws.playerId;
+        broadcast(room, 'clash_result', { winner, round });
+        room.clashFirstPlayer = null;
+      }
+      // else: already resolved, ignore duplicate
+      return;
+    }
+
     // ── Gesture submission ─────────────────────────────────────────────────
     if (msg.type === 'gesture') {
       room.gestures[ws.playerId] = { gesture: msg.gesture, speed: msg.speed };
@@ -111,6 +140,8 @@ wss.on('connection', (ws) => {
   ws.on('close', () => {
     const room = ws.roomCode ? rooms.get(ws.roomCode) : null;
     if (!room) return;
+    clearTimeout(room.clashTimer);
+    room.clashTimer = null;
     room.players = room.players.filter(p => p !== ws);
     if (room.players.length === 0) {
       rooms.delete(ws.roomCode);

@@ -72,7 +72,7 @@ export default {
   gestureType: 'single',
   undodgeable: true,
   turnType: 'domain',
-  turnAmount: 2,
+  turnAmount: 4,
   detect(hands) {
     const lm = hands[0];
     if (!lm) return false;
@@ -88,7 +88,7 @@ export default {
   LoopEffect,
   videoEffects: {
     caster: { type: 'background', src: '/effects/unlimited_void/bg.mp4', loop: true },
-    target: { type: 'background', src: '/effects/unlimited_void/bg.mp4', loop: true },
+    target: { type: 'background', src: '/effects/unlimited_void/bg_opp.mp4', loop: true },
   },
   resolve() { return { stunTurns: 1 }; },
 };

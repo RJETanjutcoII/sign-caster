@@ -71,7 +71,7 @@ wss.on('connection', (ws) => {
     // ── Loadout + build handshake ──────────────────────────────────────────
     if (msg.type === 'handshake') {
       const other = room.players.find(p => p !== ws);
-      if (other) send(other, 'opponent_handshake', { loadout: msg.loadout, build: msg.build });
+      if (other) send(other, 'opponent_handshake', { loadout: msg.loadout, build: msg.build, username: msg.username ?? null });
       return;
     }
 

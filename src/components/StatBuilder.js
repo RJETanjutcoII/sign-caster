@@ -1,17 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import { STATS, computeBuildFromPoints } from '@/lib/buildUtils';
 
 const TOTAL_POINTS = 10;
 const MAX_PER_STAT = 5;
-
-const STATS = [
-  { key: 'hp',  label: 'HP',  desc: 'Max health',           base: 120, perPt: 25 },
-  { key: 'atk', label: 'ATK', desc: 'Bonus damage on every hit', base: 0,   perPt: 4  },
-  { key: 'def', label: 'DEF', desc: 'Flat damage reduction',  base: 0,   perPt: 3  },
-  { key: 'spd', label: 'SPD', desc: 'Determines turn order',  base: 1,   perPt: 1  },
-  { key: 'mp',  label: 'MP',  desc: 'Max mana',               base: 20,  perPt: 3  },
-];
 
 const PRESETS = [
   { label: 'Balanced',  pts: { hp: 2, atk: 2, def: 2, spd: 2, mp: 2 } },
@@ -20,20 +13,12 @@ const PRESETS = [
   { label: 'Speedster', pts: { hp: 2, atk: 0, def: 0, spd: 5, mp: 3 } },
 ];
 
-function computeBuild(pts) {
-  return {
-    hp:  STATS.find(s => s.key === 'hp').base  + pts.hp  * STATS.find(s => s.key === 'hp').perPt,
-    atk: STATS.find(s => s.key === 'atk').base + pts.atk * STATS.find(s => s.key === 'atk').perPt,
-    def: STATS.find(s => s.key === 'def').base + pts.def * STATS.find(s => s.key === 'def').perPt,
-    spd: STATS.find(s => s.key === 'spd').base + pts.spd * STATS.find(s => s.key === 'spd').perPt,
-    mp:  STATS.find(s => s.key === 'mp').base  + pts.mp  * STATS.find(s => s.key === 'mp').perPt,
-  };
-}
+const DEFAULT_PTS = { hp: 0, atk: 0, def: 0, spd: 0, mp: 0 };
 
-export default function StatBuilder({ onConfirm, onBack }) {
-  const [pts, setPts] = useState({ hp: 0, atk: 0, def: 0, spd: 0, mp: 0 });
+export default function StatBuilder({ onConfirm, onBack, initialPoints }) {
+  const [pts, setPts] = useState(initialPoints ?? DEFAULT_PTS);
 
-  const spent = Object.values(pts).reduce((a, b) => a + b, 0);
+  const spent     = Object.values(pts).reduce((a, b) => a + b, 0);
   const remaining = TOTAL_POINTS - spent;
 
   function adjust(key, delta) {
@@ -50,7 +35,7 @@ export default function StatBuilder({ onConfirm, onBack }) {
   }
 
   function handleConfirm() {
-    onConfirm(computeBuild(pts));
+    onConfirm(computeBuildFromPoints(pts), pts);
   }
 
   return (

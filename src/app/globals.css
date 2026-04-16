@@ -1219,6 +1219,7 @@ body:has(.statbuilder-screen) {
 /* ── Mode select screen ─────────────────────────────────── */
 
 .mode-select {
+  position: relative;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -1778,3 +1779,260 @@ body:has(.statbuilder-screen) {
 
 .clash-result--win  { color: #7cf; }
 .clash-result--loss { color: #f87; }
+
+/* ── Auth screen ────────────────────────────────────────────── */
+
+html:has(.auth-screen),
+body:has(.auth-screen),
+html:has(.username-setup-screen),
+body:has(.username-setup-screen) {
+  overflow: auto;
+}
+
+.auth-screen,
+.username-setup-screen {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  padding: 2rem;
+  text-align: center;
+}
+
+.auth-title {
+  font-size: clamp(2rem, 8vw, 4rem);
+  letter-spacing: 0.35em;
+  color: #fff;
+  text-shadow: 0 0 40px rgba(100, 180, 255, 0.6);
+}
+
+.auth-subtitle {
+  color: #aaa;
+  font-size: 0.95rem;
+  max-width: 28rem;
+  line-height: 1.6;
+}
+
+.auth-google-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: #fff;
+  color: #222;
+  border: none;
+  border-radius: 8px;
+  padding: 0.75rem 1.5rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.auth-google-btn:hover { opacity: 0.85; }
+.auth-google-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.auth-google-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+/* ── Username setup ─────────────────────────────────────────── */
+
+.username-setup-lead {
+  color: #ccc;
+  font-size: 1.05rem;
+}
+
+.username-setup-form {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  max-width: 22rem;
+}
+
+.username-setup-input {
+  width: 100%;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 8px;
+  color: #fff;
+  font-family: monospace;
+  font-size: 1.1rem;
+  padding: 0.65rem 1rem;
+  text-align: center;
+  outline: none;
+}
+.username-setup-input:focus {
+  border-color: rgba(100, 180, 255, 0.5);
+}
+
+.username-setup-hint {
+  color: #666;
+  font-size: 0.75rem;
+}
+
+.username-setup-error {
+  color: #f87;
+  font-size: 0.8rem;
+}
+
+/* ── Profile screen ─────────────────────────────────────────── */
+
+html:has(.profile-screen),
+body:has(.profile-screen) {
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+html:has(.profile-screen)::-webkit-scrollbar,
+body:has(.profile-screen)::-webkit-scrollbar { display: none; }
+
+.profile-screen {
+  min-height: 100vh;
+  max-width: 52rem;
+  margin: 0 auto;
+  padding: 2.5rem 1.5rem 4rem;
+}
+
+.profile-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 2.5rem;
+  flex-wrap: wrap;
+}
+
+.profile-username {
+  font-size: clamp(1.6rem, 5vw, 2.6rem);
+  letter-spacing: 0.15em;
+  color: #fff;
+}
+
+.profile-record {
+  font-size: 1.15rem;
+  margin-top: 0.3rem;
+}
+.profile-wins   { color: #7cf; font-weight: bold; }
+.profile-sep    { color: #555; }
+.profile-losses { color: #f87; font-weight: bold; }
+
+.profile-header-btns {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.profile-action-btn {
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.15);
+  color: #ddd;
+  border-radius: 6px;
+  padding: 0.5rem 1rem;
+  font-family: monospace;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.profile-action-btn:hover { background: rgba(255,255,255,0.13); }
+.profile-action-btn--danger { color: #f87; border-color: rgba(255, 100, 100, 0.25); }
+.profile-action-btn--danger:hover { background: rgba(255, 80, 80, 0.1); }
+
+.profile-section-title {
+  font-size: 0.8rem;
+  letter-spacing: 0.2em;
+  color: #666;
+  text-transform: uppercase;
+  margin-bottom: 1rem;
+}
+
+.profile-loading,
+.profile-empty {
+  color: #555;
+  font-size: 0.9rem;
+  text-align: center;
+  padding: 2rem 0;
+}
+
+.profile-history {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.profile-history-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+}
+.profile-history-row--win  { border-left: 3px solid #7cf; }
+.profile-history-row--loss { border-left: 3px solid #f87; }
+
+.profile-result-badge {
+  font-size: 0.7rem;
+  font-weight: bold;
+  letter-spacing: 0.12em;
+  border-radius: 4px;
+  padding: 0.2rem 0.45rem;
+  flex-shrink: 0;
+}
+.profile-result-badge--win  { background: rgba(119,204,255,0.15); color: #7cf; }
+.profile-result-badge--loss { background: rgba(255,136,119,0.15); color: #f87; }
+
+.profile-history-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.profile-history-mode {
+  font-size: 0.85rem;
+  color: #ddd;
+}
+
+.profile-history-loadout {
+  font-size: 0.7rem;
+  color: #666;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.profile-history-date {
+  font-size: 0.72rem;
+  color: #555;
+  flex-shrink: 0;
+}
+
+/* ── Mode select top bar ────────────────────────────────────── */
+
+.mode-top-bar {
+  position: absolute;
+  top: 1.2rem;
+  right: 1.5rem;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.mode-profile-btn {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.18);
+  color: #aaa;
+  border-radius: 6px;
+  padding: 0.4rem 0.9rem;
+  font-family: monospace;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.mode-profile-btn:hover { color: #fff; border-color: rgba(255,255,255,0.4); }

@@ -36,7 +36,7 @@ export function useMultiplayer() {
       if (msg.type === 'created') { setRoomCode(msg.roomCode); setPlayerId('p1'); }
       if (msg.type === 'joined')  { setRoomCode(msg.roomCode); setPlayerId('p2'); }
       if (msg.type === 'opponent_joined')      { setConnected(true); }
-      if (msg.type === 'opponent_handshake')   { setOpponentHandshake({ loadout: new Set(msg.loadout), build: msg.build }); }
+      if (msg.type === 'opponent_handshake')   { setOpponentHandshake({ loadout: new Set(msg.loadout), build: msg.build, username: msg.username ?? null }); }
       if (msg.type === 'turn_resolved') {
         turnResultRef.current = { p1: msg.p1, p2: msg.p2, resolveAt: msg.resolveAt ?? Date.now() };
         onTurnResolvedRef.current?.();
@@ -74,8 +74,8 @@ export function useMultiplayer() {
     else ws.addEventListener('open', doSend, { once: true });
   }
 
-  function sendHandshake(loadout, build) {
-    send({ type: 'handshake', loadout: [...loadout], build });
+  function sendHandshake(loadout, build, username) {
+    send({ type: 'handshake', loadout: [...loadout], build, username: username ?? null });
   }
 
   function emitGesture(gesture, speed) {

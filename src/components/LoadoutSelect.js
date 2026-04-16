@@ -11,8 +11,12 @@ const CATEGORY_CONFIG = {
   innate:   { label: 'Innate',        max: 1, color: '#ff8833' },
 };
 
-export default function LoadoutSelect({ onStart, onBack }) {
-  const [slots, setSlots] = useState([]);
+export default function LoadoutSelect({ onStart, onBack, initialSlots }) {
+  const [slots, setSlots] = useState(() => {
+    if (!Array.isArray(initialSlots)) return [];
+    // Filter to only valid keys that still exist in ABILITIES
+    return initialSlots.filter(k => !!ABILITIES[k]);
+  });
 
   function toggle(key) {
     setSlots(prev => {

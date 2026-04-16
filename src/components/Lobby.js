@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 
-export default function Lobby({ mp, loadout, build, onReady, onBack }) {
+export default function Lobby({ mp, loadout, build, onReady, onBack, username }) {
 
   const [codeInput,  setCodeInput]  = useState('');
   const [phase,      setPhase]      = useState('menu'); // 'menu'|'waiting'|'countdown'
@@ -11,7 +11,7 @@ export default function Lobby({ mp, loadout, build, onReady, onBack }) {
   // Once opponent joins, send handshake and start countdown
   useEffect(() => {
     if (!mp.connected) return;
-    mp.sendHandshake(loadout, build);
+    mp.sendHandshake(loadout, build, username);
   }, [mp.connected]);
 
   // Once we have opponent's handshake too, begin countdown
@@ -26,9 +26,10 @@ export default function Lobby({ mp, loadout, build, onReady, onBack }) {
     if (phase !== 'countdown') return;
     if (countdown <= 0) {
       onReady({
-        opponentLoadout: mp.opponentHandshake.loadout,
-        opponentBuild:   mp.opponentHandshake.build,
-        playerId:        mp.playerId ?? 'p1',
+        opponentLoadout:  mp.opponentHandshake.loadout,
+        opponentBuild:    mp.opponentHandshake.build,
+        opponentUsername: mp.opponentHandshake.username ?? null,
+        playerId:         mp.playerId ?? 'p1',
       });
       return;
     }

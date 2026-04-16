@@ -16,7 +16,7 @@ const TURN_DURATION_S     = 5;
 const OPPONENT_TIMEOUT_MS = 3000;
 const ZOOM                = 1.25;
 
-export default function PvPCanvas({ loadout, build, opponentLoadout, opponentBuild, playerId, mp, onBack }) {
+export default function PvPCanvas({ loadout, build, opponentLoadout, opponentBuild, playerId, mp, onBack, onBattleEnd }) {
   const videoRef  = useRef(null);
   const canvasRef = useRef(null);
 
@@ -235,6 +235,11 @@ export default function PvPCanvas({ loadout, build, opponentLoadout, opponentBui
       setGamePhase('resolving_first');
     }, delay);
   }
+
+  // ── Battle end callback ───────────────────────────────────────────────────
+  useEffect(() => {
+    if (gameOver && onBattleEnd) onBattleEnd(gameOver);
+  }, [gameOver]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (

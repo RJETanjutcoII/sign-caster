@@ -15,7 +15,7 @@ import { useLatestRef } from '@/lib/utils';
 const TURN_DURATION_S = 5;
 const ZOOM            = 1.25;
 
-export default function BotCanvas({ loadout, build, onBack }) {
+export default function BotCanvas({ loadout, build, onBack, onBattleEnd }) {
   const videoRef  = useRef(null);
   const canvasRef = useRef(null);
 
@@ -193,6 +193,11 @@ export default function BotCanvas({ loadout, build, onBack }) {
 
     return () => clearInterval(interval);
   }, [gamePhase, gameOver]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Battle end callback ───────────────────────────────────────────────────
+  useEffect(() => {
+    if (gameOver && onBattleEnd) onBattleEnd(gameOver);
+  }, [gameOver]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Opponent pane background ──────────────────────────────────────────────
   const opponentBackground =

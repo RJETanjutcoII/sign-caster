@@ -13,6 +13,7 @@ export default function ProfileScreen({ profile, onBack, onSignOut, onChangeSetu
       .from('battle_history')
       .select('id,result,mode,opponent_name,loadout_snapshot,played_at')
       .eq('user_id', profile.id)
+      .eq('mode', 'pvp')
       .order('played_at', { ascending: false })
       .limit(20)
       .then(({ data }) => setHistory(data ?? []));

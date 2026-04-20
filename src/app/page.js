@@ -219,9 +219,6 @@ export default function Home() {
       loadout={loadout}
       build={build}
       onBack={goHome}
-      onBattleEnd={(result) =>
-        recordBattleResult(result, 'bot', null, points, [...loadout])
-      }
     />
   );
 }

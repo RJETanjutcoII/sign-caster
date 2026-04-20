@@ -99,7 +99,7 @@ export default function PvPCanvas({ loadout, build, opponentLoadout, opponentBui
 
   // ── Disconnect handling ───────────────────────────────────────────────────
   useEffect(() => {
-    if (mp.disconnected) setGameOver('win');
+    if (mp.disconnected) setGameOver(prev => prev ?? 'win');
   }, [mp.disconnected]);
 
   // ── Shared resolution phase transitions ──────────────────────────────────

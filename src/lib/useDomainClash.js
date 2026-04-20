@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { applyDomain, applyIncoming } from './gameState';
+import { ABILITIES } from './abilities';
 
 import { Effect as DomainBreakEffect } from './effects/domain_break';
 
@@ -175,7 +176,17 @@ export function useDomainClash({
       const loserState  = playerWon ? opponentStateRef.current : playerStateRef.current;
 
       const { newCasterState, outgoing } = applyDomain(winnerState, winnerKey);
-      const newLoserState = applyIncoming({ ...loserState, nullified: false }, outgoing);
+
+      // Deduct the loser's domain costs — they spent their ult casting it, they just lost
+      const loserKey     = playerWon ? clashOppDomainRef.current : clashPlayerDomainRef.current;
+      const loserAbility = ABILITIES[loserKey];
+      const loserCharged = loserAbility ? {
+        ...loserState,
+        mana:   Math.max(0, loserState.mana   - (loserAbility.manaCost || 0)),
+        ultBar: Math.max(0, loserState.ultBar  - (loserAbility.ultCost  || 0)),
+      } : loserState;
+
+      const newLoserState = applyIncoming({ ...loserCharged, nullified: false }, outgoing);
 
       if (playerWon) {
         playerStateRef.current   = newCasterState;

@@ -84,21 +84,15 @@ export function useAuth() {
     if (data) setSavedConfig(data);
   }
 
-  async function recordBattleResult(result, mode, opponentName, points, loadout) {
+  function recordBattleResult(result, mode, opponentName, points, loadout) {
     if (!user) return;
-    await supabase.from('battle_history').insert({
-      user_id:          user.id,
-      result,
-      mode,
-      opponent_name:    opponentName ?? null,
-      points_snapshot:  points,
-      loadout_snapshot: loadout,
+    fetch('/api/record-battle', {
+      method:    'POST',
+      keepalive: true,
+      headers:   { 'Content-Type': 'application/json' },
+      body:      JSON.stringify({ result, mode, opponentName, points, loadout }),
     });
     const col = result === 'win' ? 'wins' : 'losses';
-    await supabase
-      .from('profiles')
-      .update({ [col]: (profile?.[col] ?? 0) + 1 })
-      .eq('id', user.id);
     setProfile(prev => prev ? { ...prev, [col]: (prev[col] ?? 0) + 1 } : prev);
   }
 

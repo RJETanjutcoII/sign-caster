@@ -73,7 +73,7 @@ export default function LoadoutSelect({ onStart, onBack, initialSlots }) {
         disabled={slots.length === 0}
         onClick={() => onStart(new Set(slots))}
       >
-        Enter the Arena
+        Save Loadout
       </button>
       <p className="loadout-hint">Thumbs down to cancel move!</p>
       {onBack && (

@@ -81,8 +81,8 @@ export default {
   Effect,
   LoopEffect,
   videoEffects: {
-    caster: { type: 'background', src: '/effects/sacred_ground/bg.mp4', loop: true },
-    target: { type: 'background', src: '/effects/sacred_ground/bg.mp4', loop: true },
+    caster: { type: 'background', src: '/effects/sacred_ground/bg.webm', loop: true },
+    target: { type: 'background', src: '/effects/sacred_ground/bg.webm', loop: true },
   },
   resolve() { return {}; },
 };

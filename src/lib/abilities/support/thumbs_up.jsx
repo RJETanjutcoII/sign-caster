@@ -36,7 +36,7 @@ export default {
   },
   Effect,
   videoEffects: {
-    caster: { type: 'overlay', src: '/effects/heal/caster.mp4' },
+    caster: { type: 'overlay', src: '/effects/heal/caster.webm' },
     target: null,
   },
   resolve() { return { healSelf: 15 }; },

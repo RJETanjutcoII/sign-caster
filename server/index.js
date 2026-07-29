@@ -14,12 +14,44 @@
 const { WebSocketServer, WebSocket } = require('ws');
 
 const PORT   = 3001;
-const wss    = new WebSocketServer({ port: PORT });
 const rooms  = new Map(); // code → { players: [ws, ws?] }
+
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000').split(',').map(o => o.trim());
+
+// Per-IP rate limiting: max 10 connections per minute
+const ipConnections = new Map(); // ip → { count, resetAt }
+function checkRateLimit(ip) {
+  const now = Date.now();
+  const rec = ipConnections.get(ip);
+  if (!rec || now > rec.resetAt) {
+    ipConnections.set(ip, { count: 1, resetAt: now + 60_000 });
+    return true;
+  }
+  if (rec.count >= 10) return false;
+  rec.count += 1;
+  return true;
+}
+
+const wss = new WebSocketServer({
+  port: PORT,
+  verifyClient: ({ req }, cb) => {
+    const origin = req.headers.origin || '';
+    if (!ALLOWED_ORIGINS.includes(origin)) {
+      cb(false, 403, 'Forbidden');
+      return;
+    }
+    const ip = req.socket.remoteAddress || 'unknown';
+    if (!checkRateLimit(ip)) {
+      cb(false, 429, 'Too Many Requests');
+      return;
+    }
+    cb(true);
+  },
+});
 
 function randomCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  return Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+  return Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
 }
 
 function send(ws, type, payload = {}) {

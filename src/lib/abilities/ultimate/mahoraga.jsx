@@ -63,8 +63,8 @@ export default {
   },
   Effect,
   videoEffects: {
-    caster: { type: 'overlay', src: '/effects/mahoraga/caster.mp4' },
-    target: { type: 'overlay', src: '/effects/mahoraga/target.mp4' },
+    caster: { type: 'overlay', src: '/effects/mahoraga/caster.webm' },
+    target: { type: 'overlay', src: '/effects/mahoraga/target.webm' },
   },
   resolve() { return {}; },
 };

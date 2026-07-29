@@ -62,7 +62,7 @@ export default {
   },
   Effect,
   videoEffects: {
-    caster: { type: 'overlay', src: '/effects/strike/caster.mp4' },
+    caster: { type: 'overlay', src: '/effects/strike/caster.webm' },
     target: null,
   },
   resolve() { return { speedBoost: 1 }; },

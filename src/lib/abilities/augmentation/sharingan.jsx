@@ -57,8 +57,8 @@ export default {
   },
   Effect,
   videoEffects: {
-    caster: { type: 'overlay', src: '/effects/sharingan/caster.mp4' },
-    target: { type: 'overlay', src: '/effects/sharingan/target.mp4' },
+    caster: { type: 'overlay', src: '/effects/sharingan/caster.webm' },
+    target: { type: 'overlay', src: '/effects/sharingan/target.webm' },
   },
   resolve() { return { stunTurns: 2, noRestBonus: true }; },
 };

@@ -71,25 +71,32 @@ export function useWebRTC({ mp, playerId, localVideoRef, compositeCanvasRef, bac
     // Handle incoming signals
     mp.setOnSignal(async (signal) => {
       if (stopped) return;
-      if (signal.type === 'offer') {
-        await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
-        remoteDescSet = true;
-        await flushIceCandidates();
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        mp.sendSignal({ type: 'answer', sdp: pc.localDescription });
-      }
-      if (signal.type === 'answer') {
-        await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
-        remoteDescSet = true;
-        await flushIceCandidates();
-      }
-      if (signal.type === 'ice' && signal.candidate) {
-        if (remoteDescSet) {
-          await pc.addIceCandidate(new RTCIceCandidate(signal.candidate)).catch(() => {});
-        } else {
-          iceCandidateQueue.push(signal.candidate);
+      try {
+        if (signal.type === 'offer') {
+          if (typeof signal.sdp?.type !== 'string' || typeof signal.sdp?.sdp !== 'string') return;
+          await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+          remoteDescSet = true;
+          await flushIceCandidates();
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          mp.sendSignal({ type: 'answer', sdp: pc.localDescription });
         }
+        if (signal.type === 'answer') {
+          if (typeof signal.sdp?.type !== 'string' || typeof signal.sdp?.sdp !== 'string') return;
+          await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+          remoteDescSet = true;
+          await flushIceCandidates();
+        }
+        if (signal.type === 'ice' && signal.candidate) {
+          if (typeof signal.candidate !== 'object' || signal.candidate === null) return;
+          if (remoteDescSet) {
+            await pc.addIceCandidate(new RTCIceCandidate(signal.candidate)).catch(() => {});
+          } else {
+            iceCandidateQueue.push(signal.candidate);
+          }
+        }
+      } catch {
+        // malformed signal — ignore
       }
     });
 
@@ -129,9 +136,14 @@ export function useWebRTC({ mp, playerId, localVideoRef, compositeCanvasRef, bac
       const canvas = compositeCanvasRef?.current;
       if (!canvas || canvas.width === 0 || canvas.height === 0) return;
       const stream = canvas.captureStream(30);
-      canvasStreamRef.current = stream;
       const track = stream.getVideoTracks()[0];
-      if (track) videoSender.replaceTrack(track).catch(() => {});
+      if (track) {
+        videoSender.replaceTrack(track).then(() => {
+          canvasStreamRef.current = stream;
+        }).catch(() => {
+          stream.getTracks().forEach(t => t.stop());
+        });
+      }
     } else {
       // Switch back to raw camera and free the canvas encoder
       const rawStream = localVideoRef?.current?.srcObject;

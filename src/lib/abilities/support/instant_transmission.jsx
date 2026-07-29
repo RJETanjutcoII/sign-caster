@@ -43,7 +43,7 @@ export default {
   },
   Effect,
   videoEffects: {
-    caster: { type: 'overlay', src: '/effects/instant_transmission/caster.mp4' },
+    caster: { type: 'overlay', src: '/effects/instant_transmission/caster.webm' },
     target: null,
   },
   resolve() { return { nullifySelf: true }; },

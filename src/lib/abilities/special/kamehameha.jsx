@@ -52,8 +52,8 @@ export default {
   },
   Effect,
   videoEffects: {
-    caster: { type: 'overlay', src: '/effects/kamehameha/caster.mp4' },
-    target: { type: 'overlay', src: '/effects/kamehameha/target.mp4' },
+    caster: { type: 'overlay', src: '/effects/kamehameha/caster.webm' },
+    target: { type: 'overlay', src: '/effects/kamehameha/target.webm' },
   },
   resolve() { return { damage: 30 }; },
 };

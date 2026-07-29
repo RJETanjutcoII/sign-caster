@@ -55,7 +55,7 @@ export default {
   },
   Effect,
   videoEffects: {
-    caster: { type: 'overlay', src: '/effects/iron_wall/caster.mp4' },
+    caster: { type: 'overlay', src: '/effects/iron_wall/caster.webm' },
     target: null,
   },
   resolve() { return { defBuff: { delta: 9, turnsLeft: 2 } }; },

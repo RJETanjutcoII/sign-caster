@@ -71,8 +71,8 @@ export default {
   },
   Effect,
   videoEffects: {
-    caster: { type: 'overlay', src: '/effects/expose/caster.mp4' },
-    target: { type: 'overlay', src: '/effects/expose/target.mp4' },
+    caster: { type: 'overlay', src: '/effects/expose/caster.webm' },
+    target: { type: 'overlay', src: '/effects/expose/target.webm' },
   },
   resolve() { return { defDebuff: { amount: 6, turns: 2 } }; },
 };

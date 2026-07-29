@@ -66,8 +66,8 @@ export default {
   },
   Effect,
   videoEffects: {
-    caster: { type: 'overlay', src: '/effects/web_shot/caster.mp4' },
-    target: { type: 'overlay', src: '/effects/web_shot/target.mp4' },
+    caster: { type: 'overlay', src: '/effects/web_shot/caster.webm' },
+    target: { type: 'overlay', src: '/effects/web_shot/target.webm' },
   },
   resolve() { return { speedReduction: 1 }; },
 };

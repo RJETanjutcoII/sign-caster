@@ -35,8 +35,8 @@ export default {
   },
   Effect,
   videoEffects: {
-    caster: { type: 'overlay', src: '/effects/strike/caster.mp4' },
-    target: { type: 'overlay', src: '/effects/strike/target.mp4' },
+    caster: { type: 'overlay', src: '/effects/strike/caster.webm' },
+    target: { type: 'overlay', src: '/effects/strike/target.webm' },
   },
   resolve() { return { damage: 15 }; },
 };

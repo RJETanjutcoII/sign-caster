@@ -56,7 +56,7 @@ export default {
   },
   Effect,
   videoEffects: {
-    caster: { type: 'overlay', src: '/effects/power_up/caster.mp4' },
+    caster: { type: 'overlay', src: '/effects/power_up/caster.webm' },
     target: null,
   },
   resolve() { return { atkBuff: { delta: 8, turnsLeft: 2 } }; },

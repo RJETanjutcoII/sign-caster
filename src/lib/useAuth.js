@@ -91,6 +91,10 @@ export function useAuth() {
       keepalive: true,
       headers:   { 'Content-Type': 'application/json' },
       body:      JSON.stringify({ result, mode, opponentName, points, loadout }),
+    }).then(res => {
+      if (!res.ok) console.error('record-battle failed:', res.status);
+    }).catch(err => {
+      console.error('record-battle network error:', err);
     });
     const col = result === 'win' ? 'wins' : 'losses';
     setProfile(prev => prev ? { ...prev, [col]: (prev[col] ?? 0) + 1 } : prev);

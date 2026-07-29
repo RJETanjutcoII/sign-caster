@@ -128,8 +128,8 @@ export default {
   LoopEffect,
   Effect,
   videoEffects: {
-    caster: { type: 'overlay', src: '/effects/spirit_bomb/caster.mp4' },
-    target: { type: 'overlay', src: '/effects/spirit_bomb/target.mp4' },
+    caster: { type: 'overlay', src: '/effects/spirit_bomb/caster.webm' },
+    target: { type: 'overlay', src: '/effects/spirit_bomb/target.webm' },
   },
   resolve() { return { damage: 75 }; },
 };

@@ -137,7 +137,10 @@ export function useGestureEngine({
       bv.pause();
       bv.src = '';
     } else {
-      if (bv.src !== window.location.origin + effect.src) {
+      // Normalize both sides to absolute URLs before comparing so that
+      // absolute Supabase URLs don't always mismatch and restart the load.
+      const resolved = new URL(effect.src, window.location.origin).href;
+      if (bv.src !== resolved) {
         bv.src  = effect.src;
         bv.loop = effect.loop ?? false;
       } else {
@@ -265,10 +268,11 @@ export function useGestureEngine({
 
       // Off-DOM background video element for compositing
       const bgVideo = document.createElement('video');
-      bgVideo.autoplay  = false;
-      bgVideo.muted     = true;
+      bgVideo.autoplay    = false;
+      bgVideo.muted       = true;
       bgVideo.playsInline = true;
-      bgVideoRef.current = bgVideo;
+      bgVideo.onerror     = () => console.error('[bgVideo] failed to load:', bgVideo.src);
+      bgVideoRef.current  = bgVideo;
 
       setStatus(null);
 
@@ -395,6 +399,11 @@ if (warmupCountRef.current >= 3) {
           for (const hl of hands) drawHandLandmarks(ctx, hl, w, h, zoomScale, zoomOffset);
         }
 
+        // Reset hold when not in a gesture-accepting phase
+        if (gamePhaseRef.current !== 'selecting' && gamePhaseRef.current !== 'clash_resolve_duel') {
+          gestureHoldRef.current = { gesture: null, since: 0 };
+        }
+
         // Gesture detection — priority: two-hand > single-hand > face
         const groups = gestureGroupsRef.current;
         let detected = null;
@@ -495,6 +504,11 @@ if (warmupCountRef.current >= 3) {
       landmarkerRef.current?.close();
       faceLandmarkerRef.current?.close();
       workerRef.current?.terminate();
+      if (bgVideoRef.current) {
+        bgVideoRef.current.pause();
+        bgVideoRef.current.src = '';
+        bgVideoRef.current = null;
+      }
     };
   }, [loadout]); // eslint-disable-line react-hooks/exhaustive-deps
 

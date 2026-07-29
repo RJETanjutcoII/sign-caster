@@ -94,6 +94,8 @@ export function useDomainClash({
     let round  = 1;
 
     function advanceOrFinish(winner) {
+      clearTimeout(botDuelTimerRef.current);
+      botDuelTimerRef.current = null;
       scores = {
         player:   scores.player   + (winner === 'player'   ? 1 : 0),
         opponent: scores.opponent + (winner === 'opponent' ? 1 : 0),
@@ -137,6 +139,8 @@ export function useDomainClash({
     } else {
       handleDuelResultRef.current = () => mp.emitClashGesture(round);
       mp.setOnClashResult((msg) => {
+        const validIds = ['p1', 'p2'];
+        if (!validIds.includes(msg.winner)) return;
         advanceOrFinish(msg.winner === playerId ? 'player' : 'opponent');
       });
     }

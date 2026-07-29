@@ -43,8 +43,9 @@ export default function Lobby({ mp, loadout, build, onReady, onBack, username })
   }
 
   function handleJoin() {
-    if (codeInput.trim().length < 4) return;
-    mp.joinRoom(codeInput.trim());
+    const code = codeInput.trim();
+    if (!/^[A-Z0-9]{6}$/.test(code)) return;
+    mp.joinRoom(code);
     setPhase('waiting');
   }
 
@@ -64,7 +65,7 @@ export default function Lobby({ mp, loadout, build, onReady, onBack, username })
             <input
               className="lobby-input"
               placeholder="Enter code"
-              maxLength={4}
+              maxLength={6}
               value={codeInput}
               onChange={e => setCodeInput(e.target.value.toUpperCase())}
               onKeyDown={e => e.key === 'Enter' && handleJoin()}

@@ -18,7 +18,16 @@ export async function POST(request) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { result, mode, opponentName, points, loadout } = await request.json();
+  const body = await request.json();
+  const { result, mode, opponentName, points, loadout } = body;
+
+  const VALID_RESULTS = ['win', 'loss'];
+  const VALID_MODES = ['bot', 'pvp', 'training'];
+  if (!VALID_RESULTS.includes(result)) return NextResponse.json({ error: 'Invalid result' }, { status: 400 });
+  if (!VALID_MODES.includes(mode)) return NextResponse.json({ error: 'Invalid mode' }, { status: 400 });
+  if (typeof points !== 'object' || points === null || Array.isArray(points)) return NextResponse.json({ error: 'Invalid points' }, { status: 400 });
+  if (opponentName !== undefined && opponentName !== null && typeof opponentName !== 'string') return NextResponse.json({ error: 'Invalid opponentName' }, { status: 400 });
+  if (opponentName && opponentName.length > 32) return NextResponse.json({ error: 'opponentName too long' }, { status: 400 });
 
   await supabase.from('battle_history').insert({
     user_id:          user.id,

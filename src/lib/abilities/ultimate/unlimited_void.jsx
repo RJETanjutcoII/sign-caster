@@ -87,8 +87,8 @@ export default {
   Effect,
   LoopEffect,
   videoEffects: {
-    caster: { type: 'background', src: '/effects/unlimited_void/bg.mp4', loop: true },
-    target: { type: 'background', src: '/effects/unlimited_void/bg_opp.mp4', loop: true },
+    caster: { type: 'background', src: '/effects/unlimited_void/bg.webm', loop: true },
+    target: { type: 'background', src: '/effects/unlimited_void/bg_opp.webm', loop: true },
   },
   resolve() { return { stunTurns: 1 }; },
 };

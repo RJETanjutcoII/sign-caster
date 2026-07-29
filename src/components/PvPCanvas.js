@@ -42,7 +42,8 @@ export default function PvPCanvas({ loadout, build, opponentLoadout, opponentBui
   const opponentStateRef = useRef(opponentInit);
 
   // ── Pending resolution ────────────────────────────────────────────────────
-  const pendingResolutionRef = useRef(null);
+  const pendingResolutionRef  = useRef(null);
+  const resolveTimeoutRef     = useRef(null);
 
   // ── Clash bridge refs (created here so both hooks can share them) ─────────
   const duelTargetGestureRef = useRef(null);
@@ -162,7 +163,8 @@ export default function PvPCanvas({ loadout, build, opponentLoadout, opponentBui
 
       mp.emitGesture(playerLocked, playerSpeed);
 
-      const resolveTimeout = setTimeout(() => {
+      resolveTimeoutRef.current = setTimeout(() => {
+        resolveTimeoutRef.current = null;
         if (!mp.turnResultRef.current) {
           mp.turnResultRef.current = playerId === 'p1'
             ? { p1: { gesture: playerLocked, speed: playerSpeed }, p2: { gesture: null, speed: 1 } }
@@ -172,12 +174,17 @@ export default function PvPCanvas({ loadout, build, opponentLoadout, opponentBui
       }, OPPONENT_TIMEOUT_MS);
 
       mp.setOnTurnResolved(() => {
-        clearTimeout(resolveTimeout);
+        clearTimeout(resolveTimeoutRef.current);
+        resolveTimeoutRef.current = null;
         doResolve(playerLocked, playerSpeed);
       });
     }, 1000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      clearTimeout(resolveTimeoutRef.current);
+      resolveTimeoutRef.current = null;
+    };
   }, [gamePhase, gameOver]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function doResolve(playerLocked, playerSpeed) {
@@ -190,8 +197,15 @@ export default function PvPCanvas({ loadout, build, opponentLoadout, opponentBui
     const myResult  = result[playerId];
     const oppId     = playerId === 'p1' ? 'p2' : 'p1';
     const oppResult = result[oppId];
-    const oppLocked = oppResult.gesture;
-    const oppSpeed  = Math.max(0, (opponentStateRef.current.spd || 1) + (opponentStateRef.current.speedMod || 0));
+
+    // Validate opponent gesture — must be a known ability present in their loadout (or null for timeout)
+    const rawOppGesture = oppResult.gesture;
+    const oppLocked = (rawOppGesture === null || rawOppGesture === undefined ||
+      (ABILITIES[rawOppGesture] && opponentLoadout?.has(rawOppGesture)))
+      ? rawOppGesture ?? null
+      : null;
+
+    const oppSpeed  = Math.min(50, Math.max(0, (opponentStateRef.current.spd || 1) + (opponentStateRef.current.speedMod || 0)));
 
     // ── Domain clash detection ─────────────────────────────────────────────
     const playerIsDomain = ABILITIES[myResult.gesture]?.turnType === 'domain';

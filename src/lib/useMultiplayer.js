@@ -4,6 +4,32 @@ import { useRef, useState, useEffect } from 'react';
 
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001';
 
+const KNOWN_ABILITIES = new Set([
+  'fist','finger_gun','death_ball','kamehameha','spirit_bomb','unlimited_void',
+  'malevolent_shrine','mahoraga','instant_transmission','thumbs_up','web_shot',
+  'double_v','iron_wall','power_up','expose','sharingan','sacred_ground',
+]);
+const STAT_BOUNDS = { hp: [120, 620], atk: [0, 80], def: [0, 60], spd: [1, 21], mp: [20, 80] };
+
+function validateHandshake(msg) {
+  const username = typeof msg.username === 'string'
+    ? msg.username.replace(/[<>"'&]/g, '').slice(0, 32)
+    : null;
+
+  const rawLoadout = Array.isArray(msg.loadout) ? msg.loadout : [];
+  const loadout = new Set(rawLoadout.filter(k => typeof k === 'string' && KNOWN_ABILITIES.has(k)).slice(0, 20));
+
+  const rawBuild = msg.build && typeof msg.build === 'object' ? msg.build : {};
+  const build = Object.fromEntries(
+    Object.entries(STAT_BOUNDS).map(([k, [min, max]]) => {
+      const v = Number(rawBuild[k]);
+      return [k, Number.isFinite(v) ? Math.min(Math.max(v, min), max) : min];
+    })
+  );
+
+  return { username, loadout, build };
+}
+
 export function useMultiplayer() {
   const wsRef = useRef(null);
 
@@ -36,7 +62,7 @@ export function useMultiplayer() {
       if (msg.type === 'created') { setRoomCode(msg.roomCode); setPlayerId('p1'); }
       if (msg.type === 'joined')  { setRoomCode(msg.roomCode); setPlayerId('p2'); }
       if (msg.type === 'opponent_joined')      { setConnected(true); }
-      if (msg.type === 'opponent_handshake')   { setOpponentHandshake({ loadout: new Set(msg.loadout), build: msg.build, username: msg.username ?? null }); }
+      if (msg.type === 'opponent_handshake')   { setOpponentHandshake(validateHandshake(msg)); }
       if (msg.type === 'turn_resolved') {
         turnResultRef.current = { p1: msg.p1, p2: msg.p2, resolveAt: msg.resolveAt ?? Date.now() };
         onTurnResolvedRef.current?.();

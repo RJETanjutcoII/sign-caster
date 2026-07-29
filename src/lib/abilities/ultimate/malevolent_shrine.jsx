@@ -1,3 +1,5 @@
+import { memo } from 'react';
+
 const SLASHES = [
   { top: '20%', left: '10%',  rotate: '45deg',  delay: '0s' },
   { top: '50%', left: '30%',  rotate: '-30deg', delay: '0.1s' },
@@ -6,7 +8,7 @@ const SLASHES = [
   { top: '15%', left: '80%',  rotate: '20deg',  delay: '0.08s' },
 ];
 
-export const Effect = () => (
+export const Effect = memo(() => (
   <>
     <style>{`
       @keyframes fx-shrine-bg {
@@ -43,9 +45,9 @@ export const Effect = () => (
       ))}
     </div>
   </>
-);
+));
 
-export const LoopEffect = () => (
+export const LoopEffect = memo(() => (
   <>
     <style>{`
       @keyframes fx-shrine-loop-pulse {
@@ -86,7 +88,7 @@ export const LoopEffect = () => (
       />
     ))}
   </>
-);
+));
 
 import { dist, isFingerExtended, isFingerCurled } from '@/lib/gestures';
 
@@ -115,10 +117,10 @@ export default {
   Effect,
   LoopEffect,
   videoEffects: {
-    caster:         { type: 'background', src: '/effects/malevolent_shrine/bg.mp4',                loop: true  },
-    target:         { type: 'background', src: '/effects/malevolent_shrine/bg.mp4',                loop: true  },
-    caster_entry:   { type: 'background', src: '/effects/malevolent_shrine/bg_entry.mp4',          loop: false },
-    opponent_entry: { type: 'background', src: '/effects/malevolent_shrine/bg_entry_opponent.mp4', loop: false },
+    caster:         { type: 'background', src: '/effects/malevolent_shrine/bg.webm',                loop: true  },
+    target:         { type: 'background', src: '/effects/malevolent_shrine/bg.webm',                loop: true  },
+    caster_entry:   { type: 'background', src: '/effects/malevolent_shrine/bg_entry.webm',          loop: false },
+    opponent_entry: { type: 'background', src: '/effects/malevolent_shrine/bg_entry_opponent.webm', loop: false },
   },
   resolve() { return {}; },
 };

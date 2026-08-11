@@ -1,4 +1,4 @@
-import { ABILITIES } from './abilities';
+import { ABILITIES } from './abilities/logic-index';
 
 /**
  * Creates a fresh player state from a build configuration.
@@ -125,6 +125,54 @@ export function applyStartOfTurn(state) {
   }
 
   return { newState: s, forcedGesture: null, domainOutgoing };
+}
+
+/**
+ * Runs the start-of-turn tick for both sides of a match and cross-applies
+ * each side's active-domain tick damage/stun to the other. Shared by
+ * PvPCanvas.js (called as `applyRoundStart(selfState, opponentState)`) and
+ * the WS relay's shadow simulation (called as `applyRoundStart(p1, p2)`) so
+ * both compute this from one source instead of two hand-kept copies.
+ *
+ * Order matters and is intentionally asymmetric: the first argument's SOT
+ * (and forced gesture) is computed before the second argument's domain tick
+ * has been folded into it, so a stun arriving from the second side's domain
+ * tick needs a retroactive re-check; the second argument's SOT runs *after*
+ * the first side's domain tick has already been applied to it, so it always
+ * sees the up-to-date state and never needs the retroactive check. This
+ * mirrors exactly what PvPCanvas.js already did inline. (Every current
+ * ability's `domainTick()` returns a fixed constant regardless of caster
+ * state, so which side is "first" doesn't change the resulting numbers —
+ * only which side's code path does the retroactive check — but if a future
+ * domainTick ever reads/scales off caster state, that assumption should be
+ * re-verified.)
+ *
+ * @returns {{ playerState, opponentState, playerForcedGesture, opponentForcedGesture }}
+ */
+export function applyRoundStart(playerState, opponentState) {
+  const { newState: sotPlayer, forcedGesture: playerForced0, domainOutgoing: playerDomainOut } =
+    applyStartOfTurn(playerState);
+  let player = sotPlayer;
+  let playerForcedGesture = playerForced0;
+
+  let opponent = opponentState;
+  if (playerDomainOut.damage > 0 || playerDomainOut.stunTurns > 0) {
+    opponent = applyIncoming({ ...opponent, nullified: false }, playerDomainOut);
+  }
+
+  const { newState: sotOpponent, forcedGesture: opponentForcedGesture, domainOutgoing: opponentDomainOut } =
+    applyStartOfTurn(opponent);
+  opponent = sotOpponent;
+
+  if (opponentDomainOut.damage > 0 || opponentDomainOut.stunTurns > 0) {
+    player = applyIncoming(player, opponentDomainOut);
+    if (opponentDomainOut.stunTurns > 0 && player.stunTurnsRemaining > 0 && playerForcedGesture === null) {
+      player = { ...player, stunTurnsRemaining: player.stunTurnsRemaining - 1 };
+      playerForcedGesture = 'stunned';
+    }
+  }
+
+  return { playerState: player, opponentState: opponent, playerForcedGesture, opponentForcedGesture };
 }
 
 /**
@@ -256,6 +304,34 @@ export function applyIncoming(state, outgoing) {
   return s;
 }
 
+/**
+ * Resolves the outcome of a domain clash (both sides cast a domain ability
+ * the same turn) once a winner has been determined. Activates the winner's
+ * domain normally; charges the loser the mana/ult cost of their own move
+ * anyway (they committed to casting it, they just lost the race) and applies
+ * the winner's domain's initial outgoing effect to them. Shared by
+ * useDomainClash.js (the client's animated duel sequence) and the WS relay's
+ * shadow simulation, which both need the exact same state transition once
+ * *their* respective winner-determination logic (an interactive duel
+ * client-side; a first-to-3 tally server-side) lands on the same winner.
+ *
+ * @returns {{ newWinnerState, newLoserState }}
+ */
+export function resolveDomainClashOutcome(winnerState, winnerKey, loserState, loserKey) {
+  const { newCasterState: newWinnerState, outgoing } = applyDomain(winnerState, winnerKey);
+
+  const loserAbility = ABILITIES[loserKey];
+  const loserCharged = loserAbility ? {
+    ...loserState,
+    mana:   Math.max(0, loserState.mana   - (loserAbility.manaCost || 0)),
+    ultBar: Math.max(0, loserState.ultBar  - (loserAbility.ultCost  || 0)),
+  } : loserState;
+
+  const newLoserState = applyIncoming({ ...loserCharged, nullified: false }, outgoing);
+
+  return { newWinnerState, newLoserState };
+}
+
 const EMPTY_OUTGOING = { damage: 0, stunTurns: 0, noRestBonus: false, dot: null };
 
 /**
@@ -355,8 +431,6 @@ export function resolveOrderedTurns(
 
   return {
     playerFinal, botFinal,
-    playerOut, botOut,
-    playerGoesFirst,
     firstMoverIsPlayer: playerGoesFirst,
     // Phase 1 (first mover)
     firstEffectKey: firstEK,
@@ -366,12 +440,8 @@ export function resolveOrderedTurns(
     secondEffectKey,
     secondMessage,
     secondGesture: sGesture,
-    secondSuppressed: suppressed,
     // Intermediate states for staged HP display
     playerIntermediate,
     botIntermediate,
-    // Legacy compat
-    effectKey: firstEK,
-    message:   firstMsg,
   };
 }

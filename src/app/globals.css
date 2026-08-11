@@ -649,32 +649,32 @@ body:has(.statbuilder-screen) {
   z-index: 20;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: clamp(0.5rem, 0.56vw, 0.75rem);
   background: rgba(0, 0, 0, 0.6);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 14px;
-  padding: 1.2rem 1.5rem;
-  min-width: 640px;
+  padding: clamp(0.7rem, 0.9vw, 1.2rem) clamp(0.9rem, 1.1vw, 1.5rem);
+  min-width: clamp(420px, 29.6vw, 640px);
   backdrop-filter: blur(6px);
 }
 
 .stats-row {
   display: flex;
   align-items: center;
-  gap: 0.9rem;
+  gap: clamp(0.6rem, 0.67vw, 0.9rem);
 }
 
 .stats-label {
-  font-size: 0.9rem;
+  font-size: clamp(0.7rem, 0.67vw, 0.9rem);
   letter-spacing: 0.1em;
   color: rgba(255, 255, 255, 0.5);
-  width: 3rem;
+  width: clamp(2.2rem, 2.22vw, 3rem);
   flex-shrink: 0;
 }
 
 .stats-track {
   flex: 1;
-  height: 32px;
+  height: clamp(20px, 1.48vw, 32px);
   background: rgba(255, 255, 255, 0.08);
   border-radius: 16px;
   overflow: hidden;
@@ -691,9 +691,9 @@ body:has(.statbuilder-screen) {
 .stats-fill--ult { background: #ffcc22; box-shadow: 0 0 10px rgba(255, 204, 34, 0.7); }
 
 .stats-value {
-  font-size: 0.9rem;
+  font-size: clamp(0.7rem, 0.67vw, 0.9rem);
   color: rgba(255, 255, 255, 0.6);
-  width: 4rem;
+  width: clamp(2.8rem, 2.96vw, 4rem);
   text-align: right;
   flex-shrink: 0;
 }
@@ -706,7 +706,7 @@ body:has(.statbuilder-screen) {
 }
 
 .stats-status {
-  font-size: 0.55rem;
+  font-size: clamp(0.5rem, 0.41vw, 0.55rem);
   letter-spacing: 0.08em;
   color: #ffaa44;
   background: rgba(255, 140, 40, 0.12);
@@ -724,25 +724,25 @@ body:has(.statbuilder-screen) {
   transform: translateY(-50%);
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: clamp(0.8rem, 0.93vw, 1.25rem);
   z-index: 20;
 }
 
 .loadout-hud-entry {
   display: flex;
   align-items: center;
-  gap: 1.1rem;
+  gap: clamp(0.7rem, 0.81vw, 1.1rem);
   background: rgba(0, 0, 0, 0.5);
   border: 1px solid rgba(255, 255, 255, 0.07);
   border-left: 5px solid var(--ability-color);
   border-radius: 14px;
-  padding: 0.9rem 1.4rem;
+  padding: clamp(0.6rem, 0.67vw, 0.9rem) clamp(0.9rem, 1.04vw, 1.4rem);
   backdrop-filter: blur(4px);
 }
 
 .loadout-hud-dot {
-  width: 14px;
-  height: 14px;
+  width: clamp(9px, 0.65vw, 14px);
+  height: clamp(9px, 0.65vw, 14px);
   border-radius: 50%;
   background: var(--ability-color);
   flex-shrink: 0;
@@ -756,14 +756,14 @@ body:has(.statbuilder-screen) {
 }
 
 .loadout-hud-name {
-  font-size: 1.7rem;
+  font-size: clamp(1.1rem, 1.26vw, 1.7rem);
   font-weight: bold;
   color: var(--ability-color);
   letter-spacing: 0.04em;
 }
 
 .loadout-hud-hint {
-  font-size: 1.2rem;
+  font-size: clamp(0.85rem, 0.89vw, 1.2rem);
   color: rgba(255, 255, 255, 0.4);
   letter-spacing: 0.02em;
 }

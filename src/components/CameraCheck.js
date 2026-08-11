@@ -7,19 +7,39 @@ export default function CameraCheck({ onReady, onBack }) {
   const [status, setStatus] = useState('checking'); // 'checking' | 'ready' | 'denied'
 
   useEffect(() => {
+    let stopped   = false;
+    let ownStream = null;
+
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
       .then(stream => {
+        // React Strict Mode runs this effect's mount/cleanup/mount cycle
+        // synchronously in dev, before this promise resolves. If cleanup
+        // already fired, this is the orphaned first call — release it
+        // immediately instead of leaving two concurrent opens on the same
+        // camera (which on many Windows webcam drivers yields a black/frozen
+        // frame on one of the two streams).
+        if (stopped) { stream.getTracks().forEach(t => t.stop()); return; }
+        ownStream = stream;
         streamRef.current = stream;
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.play();
-        }
         setStatus('ready');
       })
-      .catch(() => setStatus('denied'));
+      .catch(() => { if (!stopped) setStatus('denied'); });
 
-    return () => streamRef.current?.getTracks().forEach(t => t.stop());
+    return () => {
+      stopped = true;
+      ownStream?.getTracks().forEach(t => t.stop());
+    };
   }, []);
+
+  // The <video> element only mounts once status flips to 'ready', so the
+  // stream must be attached here (after that render), not inside the
+  // getUserMedia callback above where videoRef.current is still null.
+  useEffect(() => {
+    if (status === 'ready' && videoRef.current && streamRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+      videoRef.current.play().catch(() => {});
+    }
+  }, [status]);
 
   return (
     <div className="camera-check">

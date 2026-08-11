@@ -1,4 +1,4 @@
-import { dist, isFingerExtended, isFingerCurled } from '@/lib/gestures';
+import logic from './sacred_ground.logic.js';
 
 export const Effect = () => (
   <>
@@ -62,27 +62,11 @@ export const LoopEffect = () => (
 );
 
 export default {
-  name: 'Sacred Ground', category: 'ultimate', color: '#ffcc44',
-  manaCost: 0, ultCost: 5, ultGain: 0,
-  gesture: 'Open hand, palm facing camera',
-  gestureType: 'single',
-  turnType: 'domain',
-  turnAmount: 3,
-  detect(hands) {
-    const lm = hands[0];
-    if (!lm) return false;
-    const handSize = dist(lm[0], lm[9]);
-    if (handSize < 0.01) return false;
-    const tips = [8, 12, 16, 20];
-    const extendedCount = tips.filter(i => dist(lm[i], lm[0]) > handSize * 1.5).length;
-    return extendedCount >= 3;
-  },
-  domainTick() { return { manaRegen: 3 }; },
+  ...logic,
   Effect,
   LoopEffect,
   videoEffects: {
     caster: { type: 'background', src: '/effects/sacred_ground/bg.webm', loop: true },
     target: { type: 'background', src: '/effects/sacred_ground/bg.webm', loop: true },
   },
-  resolve() { return {}; },
 };

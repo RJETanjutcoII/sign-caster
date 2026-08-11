@@ -1,4 +1,4 @@
-import { dist } from '@/lib/gestures';
+import logic from './spirit_bomb.logic.js';
 
 // Shared sphere style — 200vw circle positioned so only the bottom arc is visible at top ~10vh
 const SPHERE_BASE = `
@@ -109,21 +109,7 @@ export const Effect = () => (
 );
 
 export default {
-  name: 'Spirit Bomb', category: 'ultimate', color: '#ffffaa',
-  manaCost: 0, ultCost: 5, ultGain: 0,
-  turnType: 'multi', turnAmount: 2,
-  gesture: 'Both open palms, arms spread wide',
-  gestureType: 'two-hand',
-  detect(hands) {
-    const [lm0, lm1] = hands;
-    if (!lm0 || !lm1) return false;
-    function isOpenPalm(lm) {
-      const handSize = dist(lm[0], lm[9]);
-      if (handSize < 0.01) return false;
-      return [8, 12, 16, 20].filter(i => dist(lm[i], lm[0]) > handSize * 1.5).length >= 3;
-    }
-    return isOpenPalm(lm0) && isOpenPalm(lm1) && dist(lm0[0], lm1[0]) > 0.45;
-  },
+  ...logic,
   ChargeEffect,
   LoopEffect,
   Effect,
@@ -131,5 +117,4 @@ export default {
     caster: { type: 'overlay', src: '/effects/spirit_bomb/caster.webm' },
     target: { type: 'overlay', src: '/effects/spirit_bomb/target.webm' },
   },
-  resolve() { return { damage: 75 }; },
 };

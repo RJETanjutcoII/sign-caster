@@ -2,16 +2,18 @@
 
 import { useState, useEffect } from 'react';
 
-export default function Lobby({ mp, loadout, build, onReady, onBack, username }) {
+export default function Lobby({ mp, loadout, build, onReady, onBack, username, getAccessToken }) {
 
   const [codeInput,  setCodeInput]  = useState('');
   const [phase,      setPhase]      = useState('menu'); // 'menu'|'waiting'|'countdown'
   const [countdown,  setCountdown]  = useState(3);
 
-  // Once opponent joins, send handshake and start countdown
+  // Once opponent joins, send handshake + prove our identity to the relay
+  // (it needs a verified Supabase user id to mint a result token for us later)
   useEffect(() => {
     if (!mp.connected) return;
     mp.sendHandshake(loadout, build, username);
+    getAccessToken?.().then(token => { if (token) mp.sendIdentity(token); });
   }, [mp.connected]);
 
   // Once we have opponent's handshake too, begin countdown

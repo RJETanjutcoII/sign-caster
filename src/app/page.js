@@ -44,7 +44,7 @@ function useGameStateReset(setters) {
 export default function Home() {
   const { user, profile, savedConfig, authLoading,
           signInWithGoogle, signOut, setUsername,
-          saveConfig, recordBattleResult } = useAuth();
+          saveConfig, recordBattleResult, getAccessToken } = useAuth();
 
   const [mode,        setMode]        = useState(null);
   const [cameraReady, setCameraReady] = useState(false);
@@ -184,6 +184,7 @@ export default function Home() {
         loadout={loadout}
         build={build}
         username={profile.username}
+        getAccessToken={getAccessToken}
         onReady={setPvpSession}
         onBack={() => { mp.reset(); goHome(); }}
       />
@@ -206,8 +207,8 @@ export default function Home() {
         playerId={pvpSession.playerId}
         mp={mp}
         onBack={() => { mp.reset(); goHome(); }}
-        onBattleEnd={(result) =>
-          recordBattleResult(result, 'pvp', pvpSession.opponentUsername ?? 'Unknown', points, [...loadout])
+        onBattleEnd={(result, resultToken) =>
+          recordBattleResult(result, 'pvp', pvpSession.opponentUsername ?? 'Unknown', points, [...loadout], resultToken)
         }
       />
     );

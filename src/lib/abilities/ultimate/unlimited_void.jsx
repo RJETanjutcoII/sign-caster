@@ -1,3 +1,5 @@
+import logic from './unlimited_void.logic.js';
+
 export const Effect = () => (
   <>
     <style>{`
@@ -63,32 +65,12 @@ export const LoopEffect = () => (
   </>
 );
 
-import { isFingerExtended, isFingerHalfBent, isFingerCurled } from '@/lib/gestures';
-
 export default {
-  name: 'Unlimited Void', category: 'ultimate', color: '#c8a8ff',
-  manaCost: 0, ultCost: 5, ultGain: 0,
-  gesture: 'Index finger up, middle finger slightly curled',
-  gestureType: 'single',
-  undodgeable: true,
-  turnType: 'domain',
-  turnAmount: 4,
-  detect(hands) {
-    const lm = hands[0];
-    if (!lm) return false;
-    return (
-      isFingerExtended(lm, 8)  &&
-      isFingerHalfBent(lm, 12) &&
-      isFingerCurled(lm,   16) &&
-      isFingerCurled(lm,   20)
-    );
-  },
-  domainTick() { return { stunOpponent: 1 }; },
+  ...logic,
   Effect,
   LoopEffect,
   videoEffects: {
     caster: { type: 'background', src: '/effects/unlimited_void/bg.webm', loop: true },
     target: { type: 'background', src: '/effects/unlimited_void/bg_opp.webm', loop: true },
   },
-  resolve() { return { stunTurns: 1 }; },
 };

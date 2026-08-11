@@ -52,6 +52,11 @@ export function useAuth() {
     return () => subscription.unsubscribe();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  async function getAccessToken() {
+    const { data: { session } } = await supabase.auth.getSession();
+    return session?.access_token ?? null;
+  }
+
   function signInWithGoogle() {
     supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -84,13 +89,13 @@ export function useAuth() {
     if (data) setSavedConfig(data);
   }
 
-  function recordBattleResult(result, mode, opponentName, points, loadout) {
+  function recordBattleResult(result, mode, opponentName, points, loadout, resultToken) {
     if (!user) return;
     fetch('/api/record-battle', {
       method:    'POST',
       keepalive: true,
       headers:   { 'Content-Type': 'application/json' },
-      body:      JSON.stringify({ result, mode, opponentName, points, loadout }),
+      body:      JSON.stringify({ result, mode, opponentName, points, loadout, resultToken }),
     }).then(res => {
       if (!res.ok) console.error('record-battle failed:', res.status);
     }).catch(err => {
@@ -110,5 +115,6 @@ export function useAuth() {
     setUsername,
     saveConfig,
     recordBattleResult,
+    getAccessToken,
   };
 }

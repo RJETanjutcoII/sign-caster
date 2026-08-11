@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { applyDomain, applyIncoming } from './gameState';
-import { ABILITIES } from './abilities';
+import { resolveDomainClashOutcome } from './gameState';
 
 import { Effect as DomainBreakEffect } from './effects/domain_break';
 
@@ -162,53 +161,68 @@ export function useDomainClash({
     return () => clearTimeout(tid);
   }, [gamePhase]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Phase D: clash_resolve_exit (5 000 ms) ────────────────────────────────
+  // ── Phase D: clash_resolve_exit ───────────────────────────────────────────
+  // pvb still computes the outcome locally. pvp consumes the outcome the
+  // relay already computed (via resolveDomainClashOutcome server-side, from
+  // its own authoritative clash-round tally) instead of recomputing it —
+  // same reasoning as normal turn resolution: the relay decides, the client
+  // renders.
   useEffect(() => {
     if (gamePhase !== 'clash_resolve_exit') return;
 
-    const playerWon     = clashWinner === 'player';
-    const winnerKey = playerWon ? clashPlayerDomainRef.current : clashOppDomainRef.current;
-
+    const playerWon = clashWinner === 'player';
     if (playerWon) {
       applyVideoEffectRef.current(clashPlayerDomainRef.current, true);
     } else {
       applyVideoEffectRef.current(clashOppDomainRef.current, false);
     }
 
-    const tid = setTimeout(() => {
-      const winnerState = playerWon ? playerStateRef.current : opponentStateRef.current;
-      const loserState  = playerWon ? opponentStateRef.current : playerStateRef.current;
-
-      const { newCasterState, outgoing } = applyDomain(winnerState, winnerKey);
-
-      // Deduct the loser's domain costs — they spent their ult casting it, they just lost
-      const loserKey     = playerWon ? clashOppDomainRef.current : clashPlayerDomainRef.current;
-      const loserAbility = ABILITIES[loserKey];
-      const loserCharged = loserAbility ? {
-        ...loserState,
-        mana:   Math.max(0, loserState.mana   - (loserAbility.manaCost || 0)),
-        ultBar: Math.max(0, loserState.ultBar  - (loserAbility.ultCost  || 0)),
-      } : loserState;
-
-      const newLoserState = applyIncoming({ ...loserCharged, nullified: false }, outgoing);
-
-      if (playerWon) {
-        playerStateRef.current   = newCasterState;
-        opponentStateRef.current = newLoserState;
-        setPlayerState(newCasterState);
-        setOpponentState(newLoserState);
-      } else {
-        opponentStateRef.current = newCasterState;
-        playerStateRef.current   = newLoserState;
-        clearVideoEffectRef.current();
-        setOpponentState(newCasterState);
-        setPlayerState(newLoserState);
-      }
+    function finish(newPlayerState, newOppState) {
+      playerStateRef.current   = newPlayerState;
+      opponentStateRef.current = newOppState;
+      setPlayerState(newPlayerState);
+      setOpponentState(newOppState);
+      if (!playerWon) clearVideoEffectRef.current();
 
       clashPlayerDomainRef.current = null;
       clashOppDomainRef.current    = null;
       clashSeedRef.current         = null;
       setGamePhase('selecting');
+    }
+
+    if (mode === 'pvp') {
+      const oppId = playerId === 'p1' ? 'p2' : 'p1';
+      function consume(msg) { finish(msg[playerId], msg[oppId]); }
+
+      const already = mp.clashResolvedRef.current;
+      if (already) {
+        mp.clashResolvedRef.current = null;
+        consume(already);
+        return;
+      }
+      mp.setOnClashResolved(() => {
+        const msg = mp.clashResolvedRef.current;
+        mp.clashResolvedRef.current = null;
+        mp.setOnClashResolved(null);
+        consume(msg);
+      });
+      return () => mp.setOnClashResolved(null);
+    }
+
+    // ── pvb: unchanged local computation ────────────────────────────────────
+    const winnerKey = playerWon ? clashPlayerDomainRef.current : clashOppDomainRef.current;
+    const tid = setTimeout(() => {
+      const winnerState = playerWon ? playerStateRef.current : opponentStateRef.current;
+      const loserState  = playerWon ? opponentStateRef.current : playerStateRef.current;
+      const loserKey    = playerWon ? clashOppDomainRef.current : clashPlayerDomainRef.current;
+
+      const { newWinnerState, newLoserState } =
+        resolveDomainClashOutcome(winnerState, winnerKey, loserState, loserKey);
+
+      finish(
+        playerWon ? newWinnerState : newLoserState,
+        playerWon ? newLoserState  : newWinnerState,
+      );
     }, 5000);
 
     return () => clearTimeout(tid);

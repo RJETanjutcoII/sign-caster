@@ -112,6 +112,7 @@ export function useGestureEngine({
   const frameCountRef          = useRef(0);
   const lastFaceTsRef          = useRef(0);
   const fpsTimestampsRef       = useRef([]); // rolling window of last 20 frame timestamps
+  const lastFpsFlushRef        = useRef(0);  // throttles setFps to avoid re-rendering the whole battle UI at camera frame rate
   const cachedFaceLandmarksRef = useRef(null);
   const gestureHoldRef         = useRef({ gesture: null, since: 0 });
   const warmupCountRef         = useRef(0);
@@ -134,6 +135,10 @@ export function useGestureEngine({
     const bv = bgVideoRef.current;
     if (!bv) return;
     if (!effect) {
+      // Setting src = '' always fires a spurious `error` event (the element
+      // tries to load the empty/current-page URL) — this clear is
+      // intentional, so suppress that one before it happens.
+      bv.onerror = null;
       bv.pause();
       bv.src = '';
     } else {
@@ -141,6 +146,7 @@ export function useGestureEngine({
       // absolute Supabase URLs don't always mismatch and restart the load.
       const resolved = new URL(effect.src, window.location.origin).href;
       if (bv.src !== resolved) {
+        bv.onerror = () => console.error('[bgVideo] failed to load:', bv.src);
         bv.src  = effect.src;
         bv.loop = effect.loop ?? false;
       } else {
@@ -251,8 +257,14 @@ export function useGestureEngine({
           const ts = fpsTimestampsRef.current;
           ts.push(now);
           if (ts.length > 20) ts.shift();
-          if (ts.length >= 2)
+          // This callback fires at true camera frame rate (30-60Hz) — calling
+          // setFps here every time would re-render the whole battle UI that
+          // often. It's a diagnostic display, not frame-accurate, so only
+          // flush to state a few times a second.
+          if (ts.length >= 2 && now - lastFpsFlushRef.current >= 500) {
+            lastFpsFlushRef.current = now;
             setFps(Math.round((ts.length - 1) / (ts[ts.length - 1] - ts[0]) * 1000));
+          }
           video.requestVideoFrameCallback(onVideoFrame);
         };
         video.requestVideoFrameCallback(onVideoFrame);
@@ -505,6 +517,7 @@ if (warmupCountRef.current >= 3) {
       faceLandmarkerRef.current?.close();
       workerRef.current?.terminate();
       if (bgVideoRef.current) {
+        bgVideoRef.current.onerror = null;
         bgVideoRef.current.pause();
         bgVideoRef.current.src = '';
         bgVideoRef.current = null;
